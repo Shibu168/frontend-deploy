@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import './Results.css'; // We'll create this CSS file
+import './Results.css';
 
 const Results = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedResult, setSelectedResult] = useState(null);
+
+  const API_BASE_URL = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
   useEffect(() => {
     fetchResults();
@@ -14,7 +16,7 @@ const Results = () => {
   const fetchResults = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/student/results', {
+      const response = await fetch(`${API_BASE_URL}/api/student/results`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -22,8 +24,19 @@ const Results = () => {
         }
       });
 
+      // Check if response is OK
       if (!response.ok) {
-        throw new Error('Failed to fetch results');
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
+      // Check content type to ensure it's JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Expected JSON, got:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
       }
 
       const data = await response.json();
