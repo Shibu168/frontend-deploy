@@ -26,9 +26,7 @@ const ExamForm = ({ onExamCreated }) => {
     setLoading(true);
     
     try {
-      const API_BASE = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:5000' 
-        : '';
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
       
       const response = await fetch(`${API_BASE}/api/teacher/exams`, {
         method: 'POST',

@@ -12,7 +12,7 @@ const ExamList = ({ onExamSelect }) => {
   const fetchExams = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/teacher/exams', {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -30,12 +30,11 @@ const ExamList = ({ onExamSelect }) => {
     }
   };
 
-  // Define the deleteExam function that was missing
   const deleteExam = async (examId) => {
     if (window.confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5000/api/teacher/exams/${examId}`, {
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${examId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -43,7 +42,6 @@ const ExamList = ({ onExamSelect }) => {
         });
         
         if (response.ok) {
-          // Remove the exam from the local state
           setExams(exams.filter(exam => exam.id !== examId));
           alert('Exam deleted successfully');
         } else {
@@ -61,8 +59,6 @@ const ExamList = ({ onExamSelect }) => {
       const examLink = `${window.location.origin}/exam/${exam.shareable_token}`;
       navigator.clipboard.writeText(examLink);
       setCopiedToken(exam.id);
-      
-      // Show success message
       setTimeout(() => setCopiedToken(null), 3000);
     }
   };
@@ -90,12 +86,8 @@ const ExamList = ({ onExamSelect }) => {
               <div className="exam-header">
                 <h3>{exam.title}</h3>
                 <div className="exam-badges">
-                  <span className={`status-badge ${exam.status}`}>
-                    {exam.status}
-                  </span>
-                  <span className={`visibility-badge ${exam.visibility}`}>
-                    {exam.visibility}
-                  </span>
+                  <span className={`status-badge ${exam.status}`}>{exam.status}</span>
+                  <span className={`visibility-badge ${exam.visibility}`}>{exam.visibility}</span>
                 </div>
               </div>
               
@@ -107,7 +99,6 @@ const ExamList = ({ onExamSelect }) => {
                 <span>❓ {exam.questions ? exam.questions.length : 0} questions</span>
               </div>
               
-              {/* Shareable Link Section - Always visible for private exams */}
               {exam.visibility === 'private' && exam.shareable_token && (
                 <div className="shareable-link-section">
                   <div className="link-header">
@@ -138,7 +129,7 @@ const ExamList = ({ onExamSelect }) => {
                 
                 {exam.status === 'draft' && (
                   <button 
-                    onClick={() => deleteExam(exam.id)} // Now this function is defined
+                    onClick={() => deleteExam(exam.id)}
                     className="btn-danger"
                   >
                     🗑️ Delete

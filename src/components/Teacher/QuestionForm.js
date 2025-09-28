@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-const API_BASE = process.env.REACT_APP_API_BASE;
+
 const QuestionForm = ({ exam, onBack }) => {
   const [questions, setQuestions] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -13,11 +13,16 @@ const QuestionForm = ({ exam, onBack }) => {
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Backend URLs from environment variables
+  const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
+  console.log('API Base URL:', API_BASE);
+
   useEffect(() => {
     fetchQuestions();
   }, [exam.id]);
 
   const [error, setError] = useState(null);
+  
   const fetchQuestions = async () => {
     // Don't try to fetch if no exam ID
     if (!exam || !exam.id) {
@@ -32,7 +37,11 @@ const QuestionForm = ({ exam, onBack }) => {
       const token = localStorage.getItem('token');
       console.log('Fetching questions for exam:', exam.id);
       
-      const response = await fetch(`http://localhost:5000/api/teacher/exams/${exam.id}/questions`, {
+      if (!API_BASE) {
+        throw new Error('Backend URL not configured');
+      }
+
+      const response = await fetch(`${API_BASE}/api/teacher/exams/${exam.id}/questions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -99,6 +108,10 @@ const QuestionForm = ({ exam, onBack }) => {
     setLoading(true);
     
     try {
+      if (!API_BASE) {
+        throw new Error('Backend URL not configured');
+      }
+
       const formDataToSend = new FormData();
       formDataToSend.append('question_text', formData.question_text);
       formDataToSend.append('options', JSON.stringify(formData.options));
@@ -110,8 +123,8 @@ const QuestionForm = ({ exam, onBack }) => {
       }
       
       const url = editingQuestion 
-        ? `/api/teacher/questions/${editingQuestion.id}`
-        : `/api/teacher/exams/${exam.id}/questions`;
+        ? `${API_BASE}/api/teacher/questions/${editingQuestion.id}`
+        : `${API_BASE}/api/teacher/exams/${exam.id}/questions`;
       
       const method = editingQuestion ? 'PATCH' : 'POST';
       
@@ -136,10 +149,12 @@ const QuestionForm = ({ exam, onBack }) => {
         setEditingQuestion(null);
         fetchQuestions();
       } else {
-        alert('Failed to save question');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.error('Error saving question:', error);
+      alert(`Error saving question: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -159,7 +174,11 @@ const QuestionForm = ({ exam, onBack }) => {
   const handleDelete = async (questionId) => {
     if (window.confirm('Are you sure you want to delete this question?')) {
       try {
-        const response = await fetch(`/api/teacher/questions/${questionId}`, {
+        if (!API_BASE) {
+          throw new Error('Backend URL not configured');
+        }
+
+        const response = await fetch(`${API_BASE}/api/teacher/questions/${questionId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -170,20 +189,27 @@ const QuestionForm = ({ exam, onBack }) => {
           alert('Question deleted successfully');
           fetchQuestions();
         } else {
-          alert('Failed to delete question');
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
       } catch (error) {
         console.error('Error deleting question:', error);
+        alert(`Error deleting question: ${error.message}`);
       }
     }
   };
 
   const handlePublish = async () => {
     try {
-      const response = await fetch(`/api/teacher/exams/${exam.id}/publish`, {
+      if (!API_BASE) {
+        throw new Error('Backend URL not configured');
+      }
+
+      const response = await fetch(`${API_BASE}/api/teacher/exams/${exam.id}/publish`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
       });
       
@@ -192,10 +218,12 @@ const QuestionForm = ({ exam, onBack }) => {
         alert('Exam published successfully! Share this token with students: ' + result.token);
         onBack(); // Go back to exam list
       } else {
-        alert('Failed to publish exam. Make sure all questions have correct answers.');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to publish exam' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.error('Error publishing exam:', error);
+      alert(`Error publishing exam: ${error.message}`);
     }
   };
 
@@ -212,6 +240,36 @@ const QuestionForm = ({ exam, onBack }) => {
           )}
         </div>
       </div>
+
+      {/* Connection Status */}
+      <div style={{ 
+        padding: '10px', 
+        margin: '10px 0', 
+        backgroundColor: API_BASE ? '#d4edda' : '#f8d7da',
+        border: `1px solid ${API_BASE ? '#c3e6cb' : '#f5c6cb'}`,
+        borderRadius: '4px'
+      }}>
+        <strong>Backend Status:</strong> {API_BASE ? `Connected to ${API_BASE}` : 'Not Configured'}
+      </div>
+
+      {error && (
+        <div style={{ 
+          padding: '10px', 
+          margin: '10px 0', 
+          backgroundColor: '#f8d7da',
+          border: '1px solid #f5c6cb',
+          borderRadius: '4px',
+          color: '#721c24'
+        }}>
+          <strong>Error:</strong> {error}
+          <button 
+            onClick={fetchQuestions} 
+            style={{ marginLeft: '10px', padding: '5px 10px' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
       
       {showForm && (
         <form onSubmit={handleSubmit} style={{marginTop: '20px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px'}}>
@@ -280,16 +338,23 @@ const QuestionForm = ({ exam, onBack }) => {
           </div>
           
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button type="submit" className="btn btn-primary" disabled={loading || !API_BASE}>
               {loading ? 'Saving...' : (editingQuestion ? 'Update Question' : 'Add Question')}
             </button>
+            {!API_BASE && (
+              <p style={{color: 'red', marginTop: '10px'}}>
+                Cannot save: Backend URL not configured
+              </p>
+            )}
           </div>
         </form>
       )}
       
       <div style={{marginTop: '20px'}}>
         <h3>Questions ({questions.length})</h3>
-        {questions.length === 0 ? (
+        {loading ? (
+          <p>Loading questions...</p>
+        ) : questions.length === 0 ? (
           <p>No questions added yet. Add your first question!</p>
         ) : (
           <>
@@ -325,9 +390,14 @@ const QuestionForm = ({ exam, onBack }) => {
             
             {exam.status === 'draft' && questions.length > 0 && (
               <div style={{marginTop: '20px'}}>
-                <button onClick={handlePublish} className="btn btn-primary">
+                <button onClick={handlePublish} className="btn btn-primary" disabled={!API_BASE}>
                   Publish Exam
                 </button>
+                {!API_BASE && (
+                  <p style={{color: 'red', marginTop: '10px'}}>
+                    Cannot publish: Backend URL not configured
+                  </p>
+                )}
               </div>
             )}
           </>

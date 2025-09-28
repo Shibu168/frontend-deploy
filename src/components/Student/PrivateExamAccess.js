@@ -68,9 +68,7 @@ const PrivateExamAccess = ({ user, onLogin }) => {
       setLoading(true);
       setError('');
       
-      const API_BASE = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:5000' 
-        : '';
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
       
       console.log('Fetching private exam with shareable token:', token);
       console.log('Using JWT token:', jwtToken ? 'Token exists' : 'No token');

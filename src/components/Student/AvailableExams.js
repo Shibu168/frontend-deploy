@@ -5,16 +5,16 @@ const AvailableExams = ({ onExamSelect }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // ✅ Always use env variable
+  const API_BASE = process.env.REACT_APP_API_BASE;
+
   useEffect(() => {
     fetchAvailableExams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAvailableExams = async () => {
     try {
-      const API_BASE = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:5000' 
-        : '';
-      
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE}/api/student/exams`, {
         headers: {
@@ -38,13 +38,8 @@ const AvailableExams = ({ onExamSelect }) => {
   };
 
   const handleExamSelect = async (exam) => {
-    // For public exams, fetch the details using the public route
     if (exam.visibility === 'public') {
       try {
-        const API_BASE = process.env.NODE_ENV === 'development' 
-          ? 'http://localhost:5000' 
-          : '';
-        
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_BASE}/api/student/exams/${exam.id}/start`, {
           headers: {
@@ -65,7 +60,6 @@ const AvailableExams = ({ onExamSelect }) => {
         alert('Error starting exam. Please try again.');
       }
     } else {
-      // This should not happen for public exams in the dashboard
       alert('This is a private exam. Please use the shareable link provided by your teacher.');
     }
   };
