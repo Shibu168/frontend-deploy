@@ -14,6 +14,19 @@ const ExamForm = ({ onExamCreated }) => {
   const [generatedLink, setGeneratedLink] = useState('');
   const [createdExam, setCreatedExam] = useState(null);
 
+  // Function to convert IST to UTC
+  const convertISTtoUTC = (istDateTimeString) => {
+    if (!istDateTimeString) return '';
+    
+    // Create date object from IST time (assuming input is in IST)
+    const istDate = new Date(istDateTimeString);
+    
+    // Convert to UTC by subtracting 5 hours 30 minutes
+    const utcDate = new Date(istDate.getTime() - (5 * 60 + 30) * 60 * 1000);
+    
+    return utcDate.toISOString();
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -28,13 +41,22 @@ const ExamForm = ({ onExamCreated }) => {
     try {
       const API_BASE = process.env.REACT_APP_BACKEND_URL;
       
+      // Convert IST times to UTC before sending
+      const payload = {
+        ...formData,
+        start_time: convertISTtoUTC(formData.start_time),
+        end_time: convertISTtoUTC(formData.end_time)
+      };
+
+      console.log('Sending payload:', payload); // Debug log
+
       const response = await fetch(`${API_BASE}/api/teacher/exams`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       
       if (response.ok) {
@@ -99,9 +121,40 @@ const ExamForm = ({ onExamCreated }) => {
     }
   };
 
+  // Helper to display time in IST for user feedback
+  const displayTimeInIST = (utcTimeString) => {
+    if (!utcTimeString) return '';
+    const date = new Date(utcTimeString);
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'short',
+      timeStyle: 'short'
+    });
+  };
+
   return (
     <div className="exam-form">
       <h2>Create New Exam</h2>
+      
+      {/* Timezone Info Banner */}
+      <div className="timezone-info" style={{
+        backgroundColor: '#e3f2fd',
+        padding: '10px',
+        borderRadius: '5px',
+        marginBottom: '20px',
+        border: '1px solid #90caf9'
+      }}>
+        <strong>⏰ Timezone Information:</strong> 
+        <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>
+          Times should be entered in <strong>Indian Standard Time (IST)</strong>. 
+          They will be automatically converted to UTC for the server.
+        </p>
+        {formData.start_time && (
+          <p style={{ margin: '5px 0 0 0', fontSize: '12px' }}>
+            Your start time: {displayTimeInIST(convertISTtoUTC(formData.start_time))} IST
+          </p>
+        )}
+      </div>
       
       {!generatedLink ? (
         <form onSubmit={handleSubmit}>
@@ -127,7 +180,7 @@ const ExamForm = ({ onExamCreated }) => {
           </div>
           
           <div className="form-group">
-            <label>Start Time *</label>
+            <label>Start Time (IST) *</label>
             <input
               type="datetime-local"
               name="start_time"
@@ -135,10 +188,15 @@ const ExamForm = ({ onExamCreated }) => {
               onChange={handleChange}
               required
             />
+            {formData.start_time && (
+              <small style={{ color: '#666' }}>
+                Server will receive: {convertISTtoUTC(formData.start_time)}
+              </small>
+            )}
           </div>
           
           <div className="form-group">
-            <label>End Time *</label>
+            <label>End Time (IST) *</label>
             <input
               type="datetime-local"
               name="end_time"
@@ -146,6 +204,11 @@ const ExamForm = ({ onExamCreated }) => {
               onChange={handleChange}
               required
             />
+            {formData.end_time && (
+              <small style={{ color: '#666' }}>
+                Server will receive: {convertISTtoUTC(formData.end_time)}
+              </small>
+            )}
           </div>
           
           <div className="form-group">
@@ -226,8 +289,8 @@ const ExamForm = ({ onExamCreated }) => {
               <h4>Exam Details:</h4>
               <p><strong>Title:</strong> {createdExam?.title}</p>
               <p><strong>Duration:</strong> {createdExam?.duration_minutes} minutes</p>
-              <p><strong>Starts:</strong> {new Date(createdExam?.start_time).toLocaleString()}</p>
-              <p><strong>Ends:</strong> {new Date(createdExam?.end_time).toLocaleString()}</p>
+              <p><strong>Starts (IST):</strong> {displayTimeInIST(createdExam?.start_time)}</p>
+              <p><strong>Ends (IST):</strong> {displayTimeInIST(createdExam?.end_time)}</p>
             </div>
             
             <div className="link-actions">
