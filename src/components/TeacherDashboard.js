@@ -63,6 +63,16 @@ const TeacherDashboard = ({ user, onLogout }) => {
     console.log("Selected exam changed:", selectedExam);
   }, [selectedExam]);
 
+  // Get user display name
+  const getUserDisplayName = () => {
+    return user?.displayName || user?.email?.split('@')[0] || 'Teacher';
+  };
+
+  // Get user photo URL
+  const getUserPhotoURL = () => {
+    return user?.photoURL || null;
+  };
+
   // Enhanced inline styles with theme support
   const getStyles = (isDark) => ({
     container: {
@@ -96,7 +106,7 @@ const TeacherDashboard = ({ user, onLogout }) => {
     themeToggleBtn: {
       position: 'fixed',
       top: '20px',
-      right: '20px',
+      right: '80px',
       width: '50px',
       height: '50px',
       borderRadius: '50%',
@@ -138,6 +148,11 @@ const TeacherDashboard = ({ user, onLogout }) => {
         : '1px solid rgba(14, 165, 233, 0.15)',
       transition: 'all 0.3s ease',
     },
+    headerContent: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '20px',
+    },
     headerTitle: {
       fontSize: '28px',
       fontWeight: '700',
@@ -147,6 +162,44 @@ const TeacherDashboard = ({ user, onLogout }) => {
       textShadow: isDark 
         ? '0 2px 10px rgba(0, 0, 0, 0.5)' 
         : '0 2px 10px rgba(14, 165, 233, 0.1)',
+    },
+    userProfile: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      marginRight: '20px',
+    },
+    userAvatar: {
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      overflow: 'hidden',
+      background: isDark ? '#374151' : '#e5e7eb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: isDark 
+        ? '2px solid rgba(0, 255, 150, 0.3)' 
+        : '2px solid rgba(14, 165, 233, 0.3)',
+    },
+    userAvatarImg: {
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+    },
+    userInfo: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-start',
+    },
+    userName: {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: isDark ? '#f8fafc' : '#0f172a',
+    },
+    userRole: {
+      fontSize: '12px',
+      color: isDark ? '#94a3b8' : '#64748b',
     },
     logoutContainer: {
       position: 'relative',
@@ -349,7 +402,29 @@ const TeacherDashboard = ({ user, onLogout }) => {
       </button>
 
       <header style={styles.header}>
-        <h1 style={styles.headerTitle}>Teacher Dashboard</h1>
+        <div style={styles.headerContent}>
+          <h1 style={styles.headerTitle}>Teacher Dashboard</h1>
+          <div style={styles.userProfile}>
+            <div style={styles.userAvatar}>
+              {getUserPhotoURL() ? (
+                <img 
+                  src={getUserPhotoURL()} 
+                  alt={getUserDisplayName()}
+                  style={styles.userAvatarImg}
+                />
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 21V19A4 4 0 0 0 16 15H8A4 4 0 0 0 4 19V21" stroke="currentColor" strokeWidth="2"/>
+                  <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              )}
+            </div>
+            <div style={styles.userInfo}>
+              <span style={styles.userName}>{getUserDisplayName()}</span>
+              <span style={styles.userRole}>Teacher</span>
+            </div>
+          </div>
+        </div>
         <div style={styles.logoutContainer}>
           <button
             onClick={handleLogoutClick}

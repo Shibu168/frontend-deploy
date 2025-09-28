@@ -89,6 +89,11 @@ const StudentDashboard = ({ user, onLogout }) => {
     return user?.displayName || user?.email?.split('@')[0] || 'Student';
   };
 
+  // Get user photo URL or use default avatar
+  const getUserPhotoURL = () => {
+    return user?.photoURL || null;
+  };
+
   // If we have a selected exam, show the exam interface
   if (selectedExam) {
     return (
@@ -149,10 +154,18 @@ const StudentDashboard = ({ user, onLogout }) => {
           <div className="header-right">
             <div className="user-profile">
               <div className="user-avatar">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 21V19A4 4 0 0 0 16 15H8A4 4 0 0 0 4 19V21" stroke="currentColor" strokeWidth="2"/>
-                  <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
-                </svg>
+                {getUserPhotoURL() ? (
+                  <img 
+                    src={getUserPhotoURL()} 
+                    alt={getUserDisplayName()}
+                    className="user-avatar-img"
+                  />
+                ) : (
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 21V19A4 4 0 0 0 16 15H8A4 4 0 0 0 4 19V21" stroke="currentColor" strokeWidth="2"/>
+                    <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+                  </svg>
+                )}
               </div>
               <div className="user-info">
                 <span className="user-name">{getUserDisplayName()}</span>
