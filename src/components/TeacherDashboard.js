@@ -1,0 +1,564 @@
+import React, { useState, useEffect } from 'react';
+import { auth } from '../firebase';
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
+import ExamList from './Teacher/ExamList';
+import ExamForm from './Teacher/ExamForm';
+import QuestionForm from './Teacher/QuestionForm';
+import ResultsView from './Teacher/ResultsView';
+import './TeacherDashboard.css';
+
+const TeacherDashboard = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('exams');
+  const [selectedExam, setSelectedExam] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const navigate = useNavigate();
+
+  // Load theme preference on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('examNest-theme');
+    if (savedTheme === 'dark') {
+      setIsDarkMode(true);
+      document.documentElement.classList.add('dark-theme');
+    }
+  }, []);
+
+  // Theme toggle function
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    if (newTheme) {
+      document.documentElement.classList.add('dark-theme');
+      localStorage.setItem('examNest-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark-theme');
+      localStorage.setItem('examNest-theme', 'light');
+    }
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setIsLoggingOut(true);
+    setShowLogoutConfirm(false);
+    setTimeout(() => {
+      signOut(auth).then(() => {
+        onLogout();
+        navigate('/login');
+      }).catch((error) => {
+        console.error('Logout error:', error);
+      });
+    }, 1000);
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
+
+  useEffect(() => {
+    console.log("Selected exam changed:", selectedExam);
+  }, [selectedExam]);
+
+  // Enhanced inline styles with theme support
+  const getStyles = (isDark) => ({
+    container: {
+      minHeight: '100vh',
+      background: isDark 
+        ? 'linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 25%, #16213e 50%, #0f3460 75%, #0e4b99 100%)'
+        : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 25%, #dbeafe 50%, #ede9fe 75%, #fce7f3 100%)',
+      fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      position: 'relative',
+      overflow: 'hidden',
+      transition: 'all 0.5s ease',
+    },
+    containerOverlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundImage: isDark
+        ? `radial-gradient(circle at 2px 2px, rgba(0, 255, 150, 0.12) 1px, transparent 0),
+           radial-gradient(circle at 50px 50px, rgba(0, 150, 255, 0.08) 1px, transparent 0)`
+        : `radial-gradient(circle at 2px 2px, rgba(14, 165, 233, 0.12) 1px, transparent 0),
+           radial-gradient(circle at 50px 50px, rgba(14, 165, 233, 0.08) 1px, transparent 0)`,
+      backgroundSize: '40px 40px, 100px 100px',
+      backgroundPosition: '0 0, 25px 25px',
+      animation: 'gridMove 28s linear infinite',
+      pointerEvents: 'none',
+      opacity: 0.3,
+      zIndex: 0,
+    },
+    themeToggleBtn: {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      width: '50px',
+      height: '50px',
+      borderRadius: '50%',
+      background: isDark 
+        ? 'rgba(15, 23, 42, 0.95)' 
+        : 'rgba(255, 255, 255, 0.95)',
+      border: isDark 
+        ? '2px solid rgba(0, 255, 150, 0.2)' 
+        : '2px solid rgba(14, 165, 233, 0.2)',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      zIndex: 1000,
+      backdropFilter: 'blur(20px)',
+      boxShadow: isDark
+        ? '0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 255, 150, 0.1) inset'
+        : '0 4px 20px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.1) inset',
+    },
+    header: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '20px 30px',
+      background: isDark 
+        ? 'rgba(15, 23, 42, 0.95)' 
+        : 'rgba(255, 255, 255, 0.95)',
+      backdropFilter: 'blur(20px)',
+      boxShadow: isDark
+        ? '0 2px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 255, 150, 0.1) inset'
+        : '0 2px 20px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.1) inset',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+      borderBottom: isDark 
+        ? '1px solid rgba(0, 255, 150, 0.2)' 
+        : '1px solid rgba(14, 165, 233, 0.15)',
+      transition: 'all 0.3s ease',
+    },
+    headerTitle: {
+      fontSize: '28px',
+      fontWeight: '700',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      margin: 0,
+      letterSpacing: '-0.5px',
+      textShadow: isDark 
+        ? '0 2px 10px rgba(0, 0, 0, 0.5)' 
+        : '0 2px 10px rgba(14, 165, 233, 0.1)',
+    },
+    logoutContainer: {
+      position: 'relative',
+    },
+    logoutBtn: {
+      padding: '12px 24px',
+      background: isDark 
+        ? 'rgba(15, 23, 42, 0.95)' 
+        : 'rgba(255, 255, 255, 0.95)',
+      color: '#e74c3c',
+      border: '2px solid #e74c3c',
+      borderRadius: '12px',
+      cursor: 'pointer',
+      fontWeight: '600',
+      fontSize: '14px',
+      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 15px rgba(231, 76, 60, 0.2)',
+      backdropFilter: 'blur(10px)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      position: 'relative',
+      overflow: 'hidden',
+    },
+    logoutBtnHover: {
+      background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 25%, #f87171 50%, #fca5a5 100%)',
+      color: 'white',
+      transform: 'translateY(-2px) scale(1.02)',
+      boxShadow: '0 8px 25px rgba(239, 68, 68, 0.4)',
+    },
+    logoutIcon: {
+      fontSize: '16px',
+      position: 'relative',
+      zIndex: 1,
+    },
+    loadingSpinner: {
+      display: 'inline-block',
+      width: '16px',
+      height: '16px',
+      border: '2px solid rgba(255,255,255,.3)',
+      borderRadius: '50%',
+      borderTopColor: '#fff',
+      animation: 'spin 1s ease-in-out infinite',
+    },
+    confirmDialog: {
+      position: 'absolute',
+      top: '55px',
+      right: 0,
+      background: isDark 
+        ? 'rgba(15, 23, 42, 0.95)' 
+        : 'rgba(255, 255, 255, 0.95)',
+      backdropFilter: 'blur(25px)',
+      borderRadius: '16px',
+      padding: '20px',
+      boxShadow: isDark
+        ? '0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 255, 150, 0.1) inset'
+        : '0 10px 30px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.1) inset',
+      width: '280px',
+      zIndex: 101,
+      border: isDark 
+        ? '2px solid rgba(0, 255, 150, 0.2)' 
+        : '2px solid rgba(14, 165, 233, 0.15)',
+      animation: 'confirmDialogSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    },
+    confirmText: {
+      margin: '0 0 18px 0',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      fontSize: '14px',
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    confirmButtons: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '12px',
+    },
+    confirmButton: {
+      padding: '10px 18px',
+      borderRadius: '8px',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '13px',
+      fontWeight: '600',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.3px',
+    },
+    confirmYes: {
+      background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 25%, #f87171 50%, #fca5a5 100%)',
+      color: 'white',
+      boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)',
+    },
+    confirmNo: {
+      background: isDark 
+        ? 'rgba(0, 255, 150, 0.05)' 
+        : 'rgba(14, 165, 233, 0.05)',
+      color: isDark ? '#94a3b8' : '#64748b',
+      border: isDark 
+        ? '1px solid rgba(0, 255, 150, 0.2)' 
+        : '1px solid rgba(14, 165, 233, 0.15)',
+    },
+    nav: {
+      display: 'flex',
+      gap: '8px',
+      padding: '15px 30px',
+      background: isDark 
+        ? 'rgba(30, 41, 59, 0.9)' 
+        : 'rgba(255, 255, 255, 0.9)',
+      backdropFilter: 'blur(15px)',
+      borderBottom: isDark 
+        ? '1px solid rgba(0, 255, 150, 0.2)' 
+        : '1px solid rgba(14, 165, 233, 0.15)',
+      position: 'relative',
+      zIndex: 90,
+    },
+    navButton: {
+      padding: '12px 24px',
+      background: isDark 
+        ? 'rgba(0, 255, 150, 0.05)' 
+        : 'rgba(14, 165, 233, 0.05)',
+      border: isDark 
+        ? '2px solid rgba(0, 255, 150, 0.2)' 
+        : '2px solid rgba(14, 165, 233, 0.15)',
+      borderRadius: '12px',
+      cursor: 'pointer',
+      fontWeight: '600',
+      fontSize: '14px',
+      transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      color: isDark ? '#cbd5e1' : '#334155',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      position: 'relative',
+      overflow: 'hidden',
+      backdropFilter: 'blur(10px)',
+    },
+    navButtonActive: {
+      background: isDark
+        ? 'linear-gradient(135deg, #00ff96 0%, #0096ff 25%, #6366f1 50%, #8b5cf6 100%)'
+        : 'linear-gradient(135deg, #0369a1 0%, #0ea5e9 25%, #3b82f6 50%, #6366f1 100%)',
+      color: 'white',
+      borderColor: isDark ? '#00ff96' : '#0369a1',
+      boxShadow: isDark
+        ? '0 6px 20px rgba(0, 255, 150, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset'
+        : '0 6px 20px rgba(3, 105, 161, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+      transform: 'translateY(-1px)',
+    },
+    navButtonHover: {
+      color: isDark ? '#f8fafc' : '#0f172a',
+      borderColor: isDark ? '#00ff96' : '#0369a1',
+      transform: 'translateY(-2px)',
+      boxShadow: isDark
+        ? '0 6px 20px rgba(0, 0, 0, 0.4)'
+        : '0 6px 20px rgba(14, 165, 233, 0.15)',
+    },
+    content: {
+      padding: '30px',
+      position: 'relative',
+      zIndex: 80,
+      minHeight: 'calc(100vh - 140px)',
+    },
+  });
+
+  const styles = getStyles(isDarkMode);
+
+  return (
+    <div style={styles.container}>
+      {/* Background Overlay */}
+      <div style={styles.containerOverlay}></div>
+      
+      {/* Theme Toggle Button */}
+      <button
+        style={styles.themeToggleBtn}
+        onClick={toggleTheme}
+        title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'translateY(-2px) scale(1.05)';
+          e.target.style.boxShadow = isDarkMode
+            ? '0 8px 25px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 255, 150, 0.3)'
+            : '0 8px 25px rgba(14, 165, 233, 0.2), 0 0 30px rgba(14, 165, 233, 0.3)';
+          e.target.style.borderColor = isDarkMode ? '#00ff96' : '#0369a1';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'translateY(0) scale(1)';
+          e.target.style.boxShadow = styles.themeToggleBtn.boxShadow;
+          e.target.style.borderColor = styles.themeToggleBtn.border.split(' ')[2];
+        }}
+      >
+        {isDarkMode ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
+            <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" strokeWidth="2"/>
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" stroke="currentColor" strokeWidth="2"/>
+          </svg>
+        )}
+      </button>
+
+      <header style={styles.header}>
+        <h1 style={styles.headerTitle}>Teacher Dashboard</h1>
+        <div style={styles.logoutContainer}>
+          <button
+            onClick={handleLogoutClick}
+            style={styles.logoutBtn}
+            disabled={isLoggingOut}
+            onMouseEnter={(e) => {
+              if (!isLoggingOut) {
+                Object.assign(e.target.style, styles.logoutBtnHover);
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoggingOut) {
+                Object.assign(e.target.style, styles.logoutBtn);
+              }
+            }}
+          >
+            {isLoggingOut ? (
+              <>
+                <span style={styles.loadingSpinner}></span>
+                <span style={{ position: 'relative', zIndex: 1 }}>Logging out...</span>
+              </>
+            ) : (
+              <>
+                <span style={styles.logoutIcon}>⎋</span>
+                <span style={{ position: 'relative', zIndex: 1 }}>Logout</span>
+              </>
+            )}
+          </button>
+
+          {showLogoutConfirm && (
+            <div style={styles.confirmDialog}>
+              <p style={styles.confirmText}>Are you sure you want to logout?</p>
+              <div style={styles.confirmButtons}>
+                <button
+                  style={{...styles.confirmButton, ...styles.confirmNo}}
+                  onClick={handleCancelLogout}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = isDarkMode 
+                      ? 'rgba(0, 255, 150, 0.1)' 
+                      : 'rgba(14, 165, 233, 0.1)';
+                    e.target.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = styles.confirmNo.background;
+                    e.target.style.transform = 'translateY(0)';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={{...styles.confirmButton, ...styles.confirmYes}}
+                  onClick={handleConfirmLogout}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = styles.confirmYes.boxShadow;
+                  }}
+                >
+                  Yes, Logout
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+      
+      <nav style={styles.nav}>
+        <button 
+          style={{
+            ...styles.navButton,
+            ...(activeTab === 'exams' ? styles.navButtonActive : {})
+          }}
+          onClick={() => setActiveTab('exams')}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'exams') {
+              Object.assign(e.target.style, styles.navButtonHover);
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'exams') {
+              Object.assign(e.target.style, styles.navButton);
+            }
+          }}
+        >
+          <span style={{ position: 'relative', zIndex: 1 }}>My Exams</span>
+        </button>
+        <button 
+          style={{
+            ...styles.navButton,
+            ...(activeTab === 'create' ? styles.navButtonActive : {})
+          }}
+          onClick={() => setActiveTab('create')}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'create') {
+              Object.assign(e.target.style, styles.navButtonHover);
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'create') {
+              Object.assign(e.target.style, styles.navButton);
+            }
+          }}
+        >
+          <span style={{ position: 'relative', zIndex: 1 }}>Create Exam</span>
+        </button>
+        {selectedExam && (
+          <button 
+            style={{
+              ...styles.navButton,
+              ...(activeTab === 'questions' ? styles.navButtonActive : {})
+            }}
+            onClick={() => setActiveTab('questions')}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'questions') {
+                Object.assign(e.target.style, styles.navButtonHover);
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'questions') {
+                Object.assign(e.target.style, styles.navButton);
+              }
+            }}
+          >
+            <span style={{ position: 'relative', zIndex: 1 }}>Manage Questions</span>
+          </button>
+        )}
+        {selectedExam && (
+          <button 
+            style={{
+              ...styles.navButton,
+              ...(activeTab === 'results' ? styles.navButtonActive : {})
+            }}
+            onClick={() => setActiveTab('results')}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'results') {
+                Object.assign(e.target.style, styles.navButtonHover);
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'results') {
+                Object.assign(e.target.style, styles.navButton);
+              }
+            }}
+          >
+            <span style={{ position: 'relative', zIndex: 1 }}>View Results</span>
+          </button>
+        )}
+      </nav>
+      
+      <div style={styles.content}>
+        {activeTab === 'exams' && (
+          <ExamList 
+            onSelectExam={setSelectedExam}
+            onExamSelect={(exam) => {
+              setSelectedExam(exam);
+              setActiveTab('questions');
+            }}
+          />
+        )}
+        
+        {activeTab === 'create' && (
+          <ExamForm 
+            onExamCreated={(exam) => {
+              setSelectedExam(exam);
+              setActiveTab('questions');
+            }}
+          />
+        )}
+        
+        {activeTab === 'questions' && selectedExam && (
+          <QuestionForm 
+            exam={selectedExam}
+            onBack={() => setActiveTab('exams')}
+          />
+        )}
+        
+        {activeTab === 'results' && selectedExam && (
+          <ResultsView 
+            exam={selectedExam}
+            onBack={() => setActiveTab('exams')}
+          />
+        )}
+      </div>
+      
+      <style>
+        {`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          
+          @keyframes gridMove {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(20px, 15px) rotate(90deg); }
+            50% { transform: translate(40px, 30px) rotate(180deg); }
+            75% { transform: translate(20px, 45px) rotate(270deg); }
+            100% { transform: translate(0, 60px) rotate(360deg); }
+          }
+          
+          @keyframes confirmDialogSlide {
+            from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+export default TeacherDashboard;

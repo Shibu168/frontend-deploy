@@ -1,0 +1,340 @@
+import React, { useState, useEffect } from 'react';
+const API_BASE = process.env.REACT_APP_API_BASE;
+const QuestionForm = ({ exam, onBack }) => {
+  const [questions, setQuestions] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [formData, setFormData] = useState({
+    question_text: '',
+    options: { A: '', B: '', C: '', D: '' },
+    correct_answer: 'A',
+    marks: 1
+  });
+  const [imageFile, setImageFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [exam.id]);
+
+  const [error, setError] = useState(null);
+  const fetchQuestions = async () => {
+    // Don't try to fetch if no exam ID
+    if (!exam || !exam.id) {
+      console.log('No exam ID available, skipping fetch');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('token');
+      console.log('Fetching questions for exam:', exam.id);
+      
+      const response = await fetch(`http://localhost:5000/api/teacher/exams/${exam.id}/questions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Response status:', response.status, response.statusText);
+      
+      const responseText = await response.text();
+      
+      // Check if it's HTML
+      if (responseText.trim().startsWith('<!DOCTYPE') || responseText.includes('<html')) {
+        console.error('Full HTML response:', responseText);
+        throw new Error('Server returned HTML instead of JSON. Check if the API endpoint exists.');
+      }
+      
+      // Try to parse as JSON
+      try {
+        const questions = JSON.parse(responseText);
+        setQuestions(questions);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 100)}`);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      setError(error.message);
+      
+      if (error.message.includes('401') || error.message.includes('403')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    if (e.target.name.startsWith('option_')) {
+      const optionKey = e.target.name.split('_')[1];
+      setFormData({
+        ...formData,
+        options: {
+          ...formData.options,
+          [optionKey]: e.target.value
+        }
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [e.target.name]: e.target.value
+      });
+    }
+  };
+
+  const handleImageChange = (e) => {
+    setImageFile(e.target.files[0]);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('question_text', formData.question_text);
+      formDataToSend.append('options', JSON.stringify(formData.options));
+      formDataToSend.append('correct_answer', formData.correct_answer);
+      formDataToSend.append('marks', formData.marks);
+      
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+      
+      const url = editingQuestion 
+        ? `/api/teacher/questions/${editingQuestion.id}`
+        : `/api/teacher/exams/${exam.id}/questions`;
+      
+      const method = editingQuestion ? 'PATCH' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formDataToSend
+      });
+      
+      if (response.ok) {
+        alert(editingQuestion ? 'Question updated!' : 'Question added!');
+        setShowForm(false);
+        setFormData({
+          question_text: '',
+          options: { A: '', B: '', C: '', D: '' },
+          correct_answer: 'A',
+          marks: 1
+        });
+        setImageFile(null);
+        setEditingQuestion(null);
+        fetchQuestions();
+      } else {
+        alert('Failed to save question');
+      }
+    } catch (error) {
+      console.error('Error saving question:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (question) => {
+    setEditingQuestion(question);
+    setFormData({
+      question_text: question.question_text || '',
+      options: question.options,
+      correct_answer: question.correct_answer,
+      marks: question.marks
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (questionId) => {
+    if (window.confirm('Are you sure you want to delete this question?')) {
+      try {
+        const response = await fetch(`/api/teacher/questions/${questionId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          alert('Question deleted successfully');
+          fetchQuestions();
+        } else {
+          alert('Failed to delete question');
+        }
+      } catch (error) {
+        console.error('Error deleting question:', error);
+      }
+    }
+  };
+
+  const handlePublish = async () => {
+    try {
+      const response = await fetch(`/api/teacher/exams/${exam.id}/publish`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert('Exam published successfully! Share this token with students: ' + result.token);
+        onBack(); // Go back to exam list
+      } else {
+        alert('Failed to publish exam. Make sure all questions have correct answers.');
+      }
+    } catch (error) {
+      console.error('Error publishing exam:', error);
+    }
+  };
+
+  return (
+    <div className="question-form">
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+        <h2>Manage Questions for {exam.title}</h2>
+        <div>
+          <button onClick={onBack} className="btn btn-secondary">Back to Exams</button>
+          {exam.status === 'draft' && (
+            <button onClick={() => setShowForm(!showForm)} className="btn btn-primary" style={{marginLeft: '10px'}}>
+              {showForm ? 'Cancel' : 'Add Question'}
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{marginTop: '20px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px'}}>
+          <h3>{editingQuestion ? 'Edit Question' : 'Add New Question'}</h3>
+          
+          <div className="form-group">
+            <label>Question Text (optional if image is provided)</label>
+            <textarea
+              name="question_text"
+              value={formData.question_text}
+              onChange={handleChange}
+              rows="3"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Question Image (optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Options</label>
+            {['A', 'B', 'C', 'D'].map(option => (
+              <div key={option} style={{marginBottom: '10px'}}>
+                <label>Option {option}</label>
+                <input
+                  type="text"
+                  name={`option_${option}`}
+                  value={formData.options[option]}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            ))}
+          </div>
+          
+          <div className="form-group">
+            <label>Correct Answer</label>
+            <select
+              name="correct_answer"
+              value={formData.correct_answer}
+              onChange={handleChange}
+              required
+            >
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </div>
+          
+          <div className="form-group">
+            <label>Marks</label>
+            <input
+              type="number"
+              name="marks"
+              value={formData.marks}
+              onChange={handleChange}
+              min="1"
+              required
+            />
+          </div>
+          
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Saving...' : (editingQuestion ? 'Update Question' : 'Add Question')}
+            </button>
+          </div>
+        </form>
+      )}
+      
+      <div style={{marginTop: '20px'}}>
+        <h3>Questions ({questions.length})</h3>
+        {questions.length === 0 ? (
+          <p>No questions added yet. Add your first question!</p>
+        ) : (
+          <>
+            {questions.map((question, index) => (
+              <div key={question.id} style={{padding: '15px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                  <div>
+                    <h4>Question {index + 1} ({question.marks} marks)</h4>
+                    {question.question_text && <p>{question.question_text}</p>}
+                    {question.question_image && (
+                      <img src={question.question_image} alt="Question" style={{maxWidth: '200px', maxHeight: '200px'}} />
+                    )}
+                    <div>
+                      <p><strong>Options:</strong></p>
+                      <ul>
+                        {Object.entries(question.options).map(([key, value]) => (
+                          <li key={key} style={{color: key === question.correct_answer ? 'green' : 'inherit', fontWeight: key === question.correct_answer ? 'bold' : 'normal'}}>
+                            {key}: {value} {key === question.correct_answer && '(Correct)'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  {exam.status === 'draft' && (
+                    <div>
+                      <button onClick={() => handleEdit(question)} style={{marginRight: '10px'}}>Edit</button>
+                      <button onClick={() => handleDelete(question.id)} style={{backgroundColor: '#e74c3c'}}>Delete</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {exam.status === 'draft' && questions.length > 0 && (
+              <div style={{marginTop: '20px'}}>
+                <button onClick={handlePublish} className="btn btn-primary">
+                  Publish Exam
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default QuestionForm;
