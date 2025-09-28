@@ -15,16 +15,22 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token'); // after login
+      const token = localStorage.getItem('token');
       const response = await api.get('/api/admin/users', {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('Fetched users:', response.data);
-      setUsers(response.data || []); // fallback to empty array
+      setUsers(response.data || []);
     } catch (err) {
       console.error('Fetch error:', err);
-      if (err.response?.status === 401) onLogout();
-      else setError(err.response?.data?.message || 'Failed to fetch users');
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        onLogout();
+      } else {
+        setError(err.response?.data?.message || 'Failed to fetch users');
+      }
     } finally {
       setLoading(false);
     }
@@ -123,6 +129,5 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 };
-
 
 export default AdminDashboard;

@@ -1,7 +1,7 @@
 // frontend/src/components/AdminLogin.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/axiosConfig';
 import './Auth.css';
 
 const AdminLogin = ({ onAdminLogin }) => {
@@ -31,26 +31,25 @@ const AdminLogin = ({ onAdminLogin }) => {
     console.log('Email value (stringified):', JSON.stringify(formData.email));
 
     try {
-      const response = await axios.post('http://localhost:5000/api/admin/login', {
+      const response = await api.post('/api/admin/login', {
         email: formData.email,
         password: formData.password
       });
-    // ... rest of your code
 
-    const { token, user } = response.data;
-    
-    // Store token and user data
-    localStorage.setItem('adminToken', token);
-    localStorage.setItem('adminUser', JSON.stringify(user));
-    
-    // Call the parent callback if provided
-    // if (onAdminLogin) {
-    //   onAdminLogin(user, token);  // Check what onAdminLogin does
-    // }
-    
-    // Navigate to admin dashboard
-    navigate('/admin-dashboard', { state: { user } });
-    
+      const { token, user } = response.data;
+      
+      // Store token and user data
+      localStorage.setItem('adminToken', token);
+      localStorage.setItem('adminUser', JSON.stringify(user));
+      
+      // Call the parent callback if provided
+      if (onAdminLogin) {
+        onAdminLogin(user, token);
+      }
+      
+      // Navigate to admin dashboard
+      navigate('/admin-dashboard', { state: { user } });
+      
     } catch (error) {
       console.error('Login error:', error);
       setError(error.response?.data?.message || 'Login failed. Please try again.');
