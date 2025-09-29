@@ -33,26 +33,55 @@ export const signInWithGoogle = () => {
   return signInWithPopup(auth, provider);
 };
 
-// Enhanced registration function that handles existing accounts
+// FIXED: Enhanced registration function that properly handles existing accounts
 export const registerWithEmailPassword = async (email, password) => {
   try {
-    // Check if email already exists and how it's registered
+    // First check if email exists and how it's registered
     const methods = await fetchSignInMethodsForEmail(auth, email);
     
+    console.log('[DEBUG] Sign-in methods for', email, ':', methods);
+    
     if (methods.length > 0) {
-      // If user exists with Google but not password, guide to link accounts
+      // If user exists with Google but not password
       if (methods.includes('google.com') && !methods.includes('password')) {
-        throw new Error('EMAIL_EXISTS_WITH_GOOGLE');
+        const error = new Error('EMAIL_EXISTS_WITH_GOOGLE');
+        error.code = 'auth/email-already-in-use';
+        throw error;
       }
       // If email exists with password provider
       else if (methods.includes('password')) {
-        throw new Error('EMAIL_ALREADY_IN_USE');
+        const error = new Error('EMAIL_ALREADY_IN_USE');
+        error.code = 'auth/email-already-in-use';
+        throw error;
       }
     }
     
-    // Create new account if email doesn't exist
+    // If email doesn't exist or has no password, create new account
+    console.log('[DEBUG] Creating new account for:', email);
     return await createUserWithEmailAndPassword(auth, email, password);
   } catch (error) {
+    console.log('[DEBUG] registerWithEmailPassword error:', error);
+    
+    // If Firebase throws email-already-in-use, check the actual methods
+    if (error.code === 'auth/email-already-in-use') {
+      try {
+        const methods = await fetchSignInMethodsForEmail(auth, email);
+        console.log('[DEBUG] Re-checking methods after error:', methods);
+        
+        if (methods.includes('google.com') && !methods.includes('password')) {
+          const newError = new Error('EMAIL_EXISTS_WITH_GOOGLE');
+          newError.code = 'auth/email-already-in-use';
+          throw newError;
+        } else if (methods.includes('password')) {
+          const newError = new Error('EMAIL_ALREADY_IN_USE');
+          newError.code = 'auth/email-already-in-use';
+          throw newError;
+        }
+      } catch (methodsError) {
+        console.log('[DEBUG] Error checking methods:', methodsError);
+      }
+    }
+    
     throw error;
   }
 };

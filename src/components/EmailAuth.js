@@ -76,7 +76,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
   };
 
-  // Enhanced registration handler
+  // FIXED: Enhanced registration handler with better error processing
   const handleRegistration = async () => {
     if (password !== confirmPassword) {
       setError("Passwords don't match");
@@ -89,42 +89,67 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
 
     try {
-      // Check if email exists and how
+      console.log('[DEBUG] Starting registration for:', email);
+      
+      // First check if email exists and how
       const methods = await checkEmailExists(email);
+      console.log('[DEBUG] Existing methods:', methods);
       
       if (methods.length > 0) {
         if (methods.includes('google.com') && !methods.includes('password')) {
-          // Email exists with Google but not password - offer linking
+          // Email exists with Google but not password
           setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-          setError('This email is already registered with Google. Would you like to link a password to your Google account?');
+          setError('This email is already registered with Google. Would you like to add a password to your account?');
           return;
         } else if (methods.includes('password')) {
-          // Email exists with password - suggest sign in
+          // Email exists with password
           setError('An account with this email already exists. Please sign in instead.');
           setIsLogin(true);
           return;
         }
       }
 
-      // Create new account if no conflicts
+      // If no conflicts, proceed with registration
+      console.log('[DEBUG] No conflicts, creating account...');
       const result = await registerWithEmailPassword(email, password);
       const user = result.user;
       
+      console.log('[DEBUG] Account created, sending verification...');
       await sendVerificationEmail(user);
       onEmailRegistration(user.email, user);
       
       setMessage(`Verification email sent to ${user.email}! Please check your inbox.`);
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('[DEBUG] Registration error details:', error);
+      console.error('[DEBUG] Error code:', error.code);
+      console.error('[DEBUG] Error message:', error.message);
       
+      // Handle custom error messages from our enhanced register function
       if (error.message === 'EMAIL_EXISTS_WITH_GOOGLE') {
         setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-        setError('This email is already registered with Google. Would you like to link a password to your Google account?');
+        setError('This email is already registered with Google. Would you like to add a password to your account?');
       } else if (error.message === 'EMAIL_ALREADY_IN_USE') {
         setError('An account with this email already exists. Please sign in instead.');
         setIsLogin(true);
+      } 
+      // Handle Firebase native errors as fallback
+      else if (error.code === 'auth/email-already-in-use') {
+        // Double check the methods to provide appropriate message
+        try {
+          const methods = await checkEmailExists(email);
+          if (methods.includes('google.com')) {
+            setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
+            setError('This email is already registered with Google. Would you like to add a password to your account?');
+          } else {
+            setError('An account with this email already exists. Please sign in instead.');
+            setIsLogin(true);
+          }
+        } catch (methodsError) {
+          setError('An account with this email already exists. Please sign in instead.');
+          setIsLogin(true);
+        }
       } else {
-        setError(error.message);
+        setError(error.message || 'Registration failed. Please try again.');
       }
     }
   };
@@ -132,13 +157,20 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
   // Handle account linking
   const handleAccountLinking = async () => {
     setLoading(true);
+    setError('');
     try {
+      console.log('[DEBUG] Starting account linking for:', email);
+      
       // First sign in with Google
       const googleResult = await signInWithGoogle();
       const googleUser = googleResult.user;
       
+      console.log('[DEBUG] Google sign-in successful, linking credentials...');
+      
       // Then link the email/password
       await linkEmailPasswordToGoogle(email, password);
+      
+      console.log('[DEBUG] Account linking successful');
       
       setMessage('Your email and password have been successfully linked to your Google account!');
       
@@ -148,13 +180,14 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       
       setAccountRecoveryMode(null);
     } catch (error) {
-      console.error('Account linking error:', error);
-      setError('Failed to link accounts. Please try again.');
+      console.error('[DEBUG] Account linking error:', error);
+      setError('Failed to link accounts. Please try again. ' + (error.message || ''));
     } finally {
       setLoading(false);
     }
   };
 
+  // FIXED: Main submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -165,6 +198,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     try {
       if (isLogin) {
         // Sign in logic
+        console.log('[DEBUG] Attempting sign in for:', email);
         const result = await signInWithEmailPassword(email, password);
         const user = result.user;
         
@@ -181,25 +215,21 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
         await handleRegistration();
       }
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error('[DEBUG] Authentication error:', error);
+      console.error('[DEBUG] Error code:', error.code);
       
-      if (error.code === 'auth/email-already-in-use') {
-        // Fallback error handling
-        const methods = await checkEmailExists(email);
-        if (methods.includes('google.com')) {
-          setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-          setError('This email is already registered with Google. Would you like to link a password to your Google account?');
-        } else {
-          setError('An account with this email already exists. Please sign in instead.');
-          setIsLogin(true);
-        }
-      } else if (error.code === 'auth/wrong-password') {
+      if (error.code === 'auth/wrong-password') {
         setError('Incorrect password. Please try again or reset your password.');
       } else if (error.code === 'auth/user-not-found') {
         setError('No account found with this email. Please create a new account.');
         setIsLogin(false);
+      } else if (error.code === 'auth/invalid-credential') {
+        setError('Invalid email or password. Please try again.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setError('Too many failed attempts. Please try again later or reset your password.');
       } else {
-        setError(error.message);
+        // For any other errors, show the message
+        setError(error.message || 'Authentication failed. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -279,14 +309,24 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                 <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
                   <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
                 </svg>
-                Link with Google
+                {loading ? 'Linking...' : 'Link with Google'}
+              </button>
+              <button 
+                onClick={() => {
+                  setAccountRecoveryMode(null);
+                  setError('');
+                  setEmail('');
+                }}
+                className="cancel-link"
+              >
+                Use different email
               </button>
             </div>
           </div>
         )}
 
         {/* Recovery Message */}
-        {!isLogin && (
+        {!isLogin && !accountRecoveryMode && (
           <div className="recovery-message">
             <div className="message-icon">ℹ️</div>
             <div>
@@ -319,6 +359,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
               required
               placeholder="Enter your enterprise email"
               className="secure-input"
+              disabled={accountRecoveryMode === 'LINK_GOOGLE_ACCOUNT'}
             />
           </div>
           
@@ -340,6 +381,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                 placeholder="Enter secure password"
                 className="secure-input"
                 minLength="6"
+                disabled={accountRecoveryMode === 'LINK_GOOGLE_ACCOUNT'}
               />
               <button
                 type="button"
@@ -367,7 +409,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
             )}
           </div>
           
-          {!isLogin && (
+          {!isLogin && !accountRecoveryMode && (
             <div className="form-group">
               <label>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -412,68 +454,72 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
           )}
           
           {/* Submit Button */}
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="auth-submit-btn"
-          >
-            {loading ? (
-              <>
-                <div className="loading-spinner"></div>
-                Processing...
-              </>
-            ) : (
-              <>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H15" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M10 17L15 12L10 7" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M15 12H3" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-                {isLogin ? 'Authenticate' : 'Create Secure Account'}
-              </>
-            )}
-          </button>
+          {!accountRecoveryMode && (
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="auth-submit-btn"
+            >
+              {loading ? (
+                <>
+                  <div className="loading-spinner"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M15 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H15" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M10 17L15 12L10 7" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M15 12H3" stroke="currentColor" strokeWidth="2"/>
+                  </svg>
+                  {isLogin ? 'Authenticate' : 'Create Secure Account'}
+                </>
+              )}
+            </button>
+          )}
         </form>
         
         {/* Auth Options */}
-        <div className="auth-options">
-          {isLogin ? (
-            <>
+        {!accountRecoveryMode && (
+          <div className="auth-options">
+            {isLogin ? (
+              <>
+                <div className="auth-switch">
+                  <span>New to ExamNest?</span>
+                  <button 
+                    onClick={() => setIsLogin(false)}
+                    className="switch-link"
+                  >
+                    Create Account
+                  </button>
+                </div>
+                <div className="password-reset">
+                  <button 
+                    onClick={handlePasswordReset}
+                    className="reset-link"
+                    disabled={loading}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M3 12A9 9 0 0 0 12 21A9 9 0 0 0 21 12A9 9 0 0 0 12 3" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M3 3L21 21" stroke="currentColor" strokeWidth="2"/>
+                    </svg>
+                    Forgot Password?
+                  </button>
+                </div>
+              </>
+            ) : (
               <div className="auth-switch">
-                <span>New to ExamNest?</span>
+                <span>Already have an account?</span>
                 <button 
-                  onClick={() => setIsLogin(false)}
+                  onClick={() => setIsLogin(true)}
                   className="switch-link"
                 >
-                  Create Account
+                  Sign In
                 </button>
               </div>
-              <div className="password-reset">
-                <button 
-                  onClick={handlePasswordReset}
-                  className="reset-link"
-                  disabled={loading}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 12A9 9 0 0 0 12 21A9 9 0 0 0 21 12A9 9 0 0 0 12 3" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M3 3L21 21" stroke="currentColor" strokeWidth="2"/>
-                  </svg>
-                  Forgot Password?
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="auth-switch">
-              <span>Already have an account?</span>
-              <button 
-                onClick={() => setIsLogin(true)}
-                className="switch-link"
-              >
-                Sign In
-              </button>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Security Footer */}
         <div className="security-footer">
