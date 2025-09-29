@@ -381,6 +381,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   };
 
   // NEW: Function to create or get attempt data
+// In the initializeExamAttempt function, change from POST to GET
   const initializeExamAttempt = async () => {
     if (!examData) {
       alert('Exam data is not available. Please try again.');
@@ -398,9 +399,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
       console.log('Initializing exam attempt for exam ID:', examId);
 
-      // Start exam attempt
+      // FIXED: Changed from POST to GET
       const response = await fetch(`${API_BASE}/api/student/exams/${examId}/start`, {
-        method: 'POST',
+        method: 'GET', // Changed from POST to GET
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -411,10 +412,10 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         const attemptData = await response.json();
         console.log('Exam attempt started:', attemptData);
         
-        // Store attempt data
+        // Store attempt data - note the response structure may be different
         setAttemptData({
-          attemptId: attemptData.attemptId,
-          sessionToken: attemptData.sessionToken
+          attemptId: attemptData.attempt?.id || attemptData.attemptId,
+          sessionToken: attemptData.attempt?.token || attemptData.sessionToken
         });
         
         return true;
