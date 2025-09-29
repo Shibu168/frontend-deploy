@@ -13,6 +13,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showFullScreenModal, setShowFullScreenModal] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const proctoringRef = useRef({
     tabSwitchCount: 0,
     lastSwitchTime: null,
@@ -95,7 +97,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     console.log('ExamInterface - Current examData state:', examData);
   }, [location.state, examFromState, examData]);
 
-  // Debug effect to track duration issues - FIXED: Added validatedDuration to dependencies
+  // Debug effect to track duration issues
   useEffect(() => {
     if (examData) {
       console.log('=== EXAM CONFIGURATION DEBUG ===');
@@ -106,13 +108,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       console.log('Time Left in minutes:', timeLeft / 60);
       console.log('Questions Count:', getQuestions().length);
       console.log('Tab Switch Count:', tabSwitchCount);
+      console.log('Full Screen Status:', isFullScreen);
+      console.log('Exam Paused:', isPaused);
       console.log('==========================');
     }
-  }, [examData, validatedDuration, timeLeft, examDuration, tabSwitchCount]);
+  }, [examData, validatedDuration, timeLeft, examDuration, tabSwitchCount, isFullScreen, isPaused]);
 
-  // FIXED: Combined conditional effects into one proper useEffect
+  // Handle exam data from location state or props
   useEffect(() => {
-    // Handle exam data from location state
     if (examFromState && !examData) {
       console.log('Setting exam data from location state');
       setExamData(examFromState);
@@ -121,7 +124,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       setLoading(false);
     }
     
-    // Handle exam data from props
     if (exam && !examData) {
       console.log('Exam data received:', exam);
       setExamData(exam);
@@ -130,7 +132,46 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   }, [exam, examFromState, examData]);
 
-  // Proctoring: Tab switch detection
+  // Enhanced Full Screen Detection and Enforcement
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      const fullscreenElement = document.fullscreenElement || 
+                               document.webkitFullscreenElement || 
+                               document.mozFullScreenElement || 
+                               document.msFullscreenElement;
+      
+      const newFullScreenStatus = !!fullscreenElement;
+      setIsFullScreen(newFullScreenStatus);
+      
+      if (examStarted) {
+        if (!newFullScreenStatus) {
+          // User exited full screen - pause exam and show warning
+          setIsPaused(true);
+          setShowFullScreenModal(true);
+          console.log('Exam paused due to full screen exit');
+        } else {
+          // User entered full screen - resume exam
+          setIsPaused(false);
+          setShowFullScreenModal(false);
+          console.log('Exam resumed - full screen active');
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullScreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullScreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
+    };
+  }, [examStarted]);
+
+  // Enhanced Proctoring: Tab switch detection and full screen enforcement
   useEffect(() => {
     if (!examStarted) return;
 
@@ -158,11 +199,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           handleProctoringViolation('exceeded_tab_switch_limit');
         }
       }
-    };
-
-    // Full screen detection
-    const handleFullScreenChange = () => {
-      setIsFullScreen(!!document.fullscreenElement);
     };
 
     // Key events to detect attempts to open developer tools
@@ -198,7 +234,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     proctoringRef.current.isMonitoring = true;
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    document.addEventListener('fullscreenchange', handleFullScreenChange);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('contextmenu', handleContextMenu);
 
@@ -210,11 +245,46 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     return () => {
       proctoringRef.current.isMonitoring = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.removeEventListener('fullscreenchange', handleFullScreenChange);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [examStarted, tabSwitchCount]);
+  }, [examStarted, tabSwitchCount, isFullScreen]);
+
+  // Enhanced Timer with Pause/Resume functionality
+  useEffect(() => {
+    if (!examStarted || !examData || isPaused) {
+      // Clear timer if exam not started, no data, or paused
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    // Start new timer
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prevTime => {
+        if (prevTime <= 1) {
+          clearInterval(timerRef.current);
+          handleAutoSubmit();
+          return 0;
+        }
+        return prevTime - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [examStarted, examData, isPaused]);
 
   // Request full screen function
   const requestFullScreen = () => {
@@ -223,14 +293,39 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     if (element.requestFullscreen) {
       element.requestFullscreen().catch(err => {
         console.log('Full screen request failed:', err);
+        // If full screen fails, show modal and pause exam
+        setIsPaused(true);
+        setShowFullScreenModal(true);
       });
-    } else if (element.mozRequestFullScreen) { /* Firefox */
-      element.mozRequestFullScreen();
-    } else if (element.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
-      element.webkitRequestFullscreen();
-    } else if (element.msRequestFullscreen) { /* IE/Edge */
-      element.msRequestFullscreen();
+    } else if (element.mozRequestFullScreen) {
+      element.mozRequestFullScreen().catch(err => {
+        console.log('Full screen request failed:', err);
+        setIsPaused(true);
+        setShowFullScreenModal(true);
+      });
+    } else if (element.webkitRequestFullscreen) {
+      element.webkitRequestFullscreen().catch(err => {
+        console.log('Full screen request failed:', err);
+        setIsPaused(true);
+        setShowFullScreenModal(true);
+      });
+    } else if (element.msRequestFullscreen) {
+      element.msRequestFullscreen().catch(err => {
+        console.log('Full screen request failed:', err);
+        setIsPaused(true);
+        setShowFullScreenModal(true);
+      });
+    } else {
+      // Full screen not supported
+      console.log('Full screen not supported by browser');
+      setIsPaused(true);
+      setShowFullScreenModal(true);
     }
+  };
+
+  // Resume exam when full screen is activated
+  const resumeExam = () => {
+    requestFullScreen();
   };
 
   // Handle proctoring violations
@@ -271,34 +366,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     if (!examData) return null;
     return examData.exam?.id || examData.id;
   };
-
-  // Fixed timer effect
-  useEffect(() => {
-    if (!examStarted || !examData) return;
-
-    // Clear any existing timer
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft(prevTime => {
-        if (prevTime <= 1) {
-          clearInterval(timerRef.current);
-          handleAutoSubmit();
-          return 0;
-        }
-        return prevTime - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [examStarted, examData]);
 
   const startExam = () => {
     if (!examData || getQuestions().length === 0) {
@@ -391,6 +458,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       console.log('Is auto-submit?', isAutoSubmit);
       console.log('Tab switch count:', tabSwitchCount);
       console.log('Violation type:', violationType);
+      console.log('Full screen status during submission:', isFullScreen);
 
       const submissionData = {
         attemptId: examData.attemptId,
@@ -403,7 +471,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         proctoringData: {
           tabSwitchCount: tabSwitchCount,
           violationType: violationType,
-          finalTimeLeft: timeLeft
+          finalTimeLeft: timeLeft,
+          fullScreenStatus: isFullScreen,
+          examPaused: isPaused
         }
       };
 
@@ -456,18 +526,17 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     console.log('Current answers state:', answers);
     console.log('Current answers ref:', answersRef.current);
     console.log('Tab switch count:', tabSwitchCount);
+    console.log('Full screen status:', isFullScreen);
     
     // Get the latest answers from ref to ensure we have all selected options
     const currentAnswers = answersRef.current;
     const answeredQuestions = Object.keys(currentAnswers).length;
+    const totalQuestions = getQuestions().length;
     
-    if (answeredQuestions > 0) {
-      console.log(`Auto-submitting ${answeredQuestions} answered questions`);
-      handleSubmit(true);
-    } else {
-      console.log('No answers selected, but still submitting for record keeping');
-      handleSubmit(true);
-    }
+    console.log(`Auto-submitting: ${answeredQuestions}/${totalQuestions} questions answered`);
+    
+    // Always submit, even if no answers were selected
+    handleSubmit(true);
   };
 
   const formatTime = (seconds) => {
@@ -520,19 +589,19 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           <div className="exam-info">
             <p><strong>Duration:</strong> {validatedDuration} minutes</p>
             <p><strong>Total Questions:</strong> {questions.length}</p>
+            <p><strong>Full Screen:</strong> <span style={{color: 'red', fontWeight: 'bold'}}>MANDATORY</span></p>
             <p><strong>Proctoring:</strong> Enabled (Max {MAX_TAB_SWITCHES} tab switches allowed)</p>
-            <p><strong>Full Screen:</strong> Required</p>
           </div>
 
           <div className="instructions-list">
             <h4>Important Instructions:</h4>
             <ul>
               <li>You have <strong>{validatedDuration} minutes</strong> to complete the exam</li>
+              <li><strong style={{color: 'red'}}>FULL SCREEN IS MANDATORY:</strong> Exam will pause if you exit full screen</li>
               <li><strong>Proctoring is active:</strong> Maximum {MAX_TAB_SWITCHES} tab switches allowed</li>
-              <li>Exam must be taken in <strong>full screen mode</strong></li>
               <li>Do not switch tabs, open new windows, or use developer tools</li>
               <li>The exam will auto-submit when time expires or proctoring rules are violated</li>
-              <li>All selected answers will be submitted automatically</li>
+              <li>All selected answers will be submitted automatically, even if incomplete</li>
             </ul>
           </div>
 
@@ -541,7 +610,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
               Back to Dashboard
             </button>
             <button onClick={startExam} className="btn btn-primary">
-              Start Exam
+              Start Exam in Full Screen
             </button>
           </div>
         </div>
@@ -565,6 +634,29 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   return (
     <div className="exam-interface">
+      {/* Full Screen Warning Modal */}
+      {showFullScreenModal && (
+        <div className="full-screen-warning-modal">
+          <div className="warning-content full-screen-warning">
+            <h3>⚠️ Full Screen Required</h3>
+            <p>
+              <strong>Exam is PAUSED!</strong>
+            </p>
+            <p>
+              You must be in full screen mode to continue the exam.
+            </p>
+            <p className="warning-message">
+              Time is paused until you return to full screen mode.
+            </p>
+            <div className="warning-actions">
+              <button onClick={resumeExam} className="btn btn-primary">
+                Resume Full Screen & Continue Exam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Proctoring Warning Modal */}
       {showWarningModal && (
         <div className="proctoring-warning-modal">
@@ -598,8 +690,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
         <div className="status-item">
           <span className="status-label">Full Screen:</span>
-          <span className={`status-count ${!isFullScreen ? 'warning' : ''}`}>
+          <span className={`status-count ${!isFullScreen ? 'warning' : 'success'}`}>
             {isFullScreen ? 'Active' : 'Not Active'}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">Exam Status:</span>
+          <span className={`status-count ${isPaused ? 'warning' : 'success'}`}>
+            {isPaused ? 'PAUSED' : 'Running'}
           </span>
         </div>
       </div>
@@ -607,8 +705,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="exam-header">
         <h2>{getExamTitle()}</h2>
         <div className="exam-timer">
-          Time Left: {formatTime(timeLeft)}
-          {timeLeft <= 60 && <span className="time-warning"> (Hurry!)</span>}
+          {isPaused ? (
+            <span style={{color: 'orange', fontWeight: 'bold'}}>⏸️ EXAM PAUSED - Time: {formatTime(timeLeft)}</span>
+          ) : (
+            <>
+              Time Left: {formatTime(timeLeft)}
+              {timeLeft <= 60 && <span className="time-warning"> (Hurry!)</span>}
+            </>
+          )}
         </div>
       </div>
 
@@ -620,12 +724,18 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         <div className="progress-text">
           Question {currentQuestionIndex + 1} of {questions.length}
           {` (${Object.keys(answers).length} answered)`}
+          {isPaused && <span style={{color: 'orange', marginLeft: '10px'}}>⏸️ PAUSED</span>}
         </div>
       </div>
 
       <div className="question-container">
         <div className="question-header">
           <h3>Question {currentQuestionIndex + 1}</h3>
+          {isPaused && (
+            <div className="paused-overlay">
+              <p>Exam is paused. Return to full screen to continue.</p>
+            </div>
+          )}
         </div>
         
         <div className="question-text">
@@ -648,6 +758,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
                 value={key}
                 checked={answers[currentQuestion.id] === key}
                 onChange={() => handleAnswerSelect(currentQuestion.id, key)}
+                disabled={isPaused}
               />
               <span className="option-text">{value}</span>
             </label>
@@ -658,7 +769,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="navigation-buttons">
         <button 
           onClick={handlePrevious}
-          disabled={currentQuestionIndex === 0}
+          disabled={currentQuestionIndex === 0 || isPaused}
           className="btn btn-secondary"
         >
           Previous
@@ -666,18 +777,23 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         
         <div className="question-counter">
           {currentQuestionIndex + 1} / {questions.length}
+          {isPaused && <span style={{color: 'orange'}}> (Paused)</span>}
         </div>
 
         {currentQuestionIndex === questions.length - 1 ? (
           <button 
             onClick={() => handleSubmit(false)}
-            disabled={loading || isSubmitting}
+            disabled={loading || isSubmitting || isPaused}
             className="btn btn-primary"
           >
             {loading ? 'Submitting...' : 'Submit Exam'}
           </button>
         ) : (
-          <button onClick={handleNext} className="btn btn-primary">
+          <button 
+            onClick={handleNext} 
+            disabled={isPaused}
+            className="btn btn-primary"
+          >
             Next
           </button>
         )}
@@ -692,13 +808,26 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
               className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
                 answers[question.id] ? 'answered' : ''
               }`}
-              onClick={() => setCurrentQuestionIndex(index)}
+              onClick={() => !isPaused && setCurrentQuestionIndex(index)}
+              disabled={isPaused}
             >
               {index + 1}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Full Screen Reminder Footer */}
+      {!isFullScreen && examStarted && (
+        <div className="full-screen-reminder">
+          <div className="reminder-content">
+            <p>⚠️ <strong>Full Screen Required:</strong> Please return to full screen mode to continue your exam.</p>
+            <button onClick={resumeExam} className="btn btn-warning">
+              Resume Full Screen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
