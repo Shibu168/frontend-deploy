@@ -1,10 +1,13 @@
+// components/EmailAuth.js
 import React, { useState, useEffect } from 'react';
 import { 
   registerWithEmailPassword, 
   signInWithEmailPassword, 
   sendPasswordReset,
   sendVerificationEmail,
-  signInWithGoogle
+  signInWithGoogle,
+  linkEmailPasswordToGoogle,
+  checkEmailExists
 } from '../firebase';
 import './EmailAuth.css';
 
@@ -19,6 +22,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
   const [securityStatus, setSecurityStatus] = useState('secure');
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [accountRecoveryMode, setAccountRecoveryMode] = useState(null);
 
   // Security status animation
   useEffect(() => {
@@ -45,7 +49,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     setPasswordStrength(strength);
   }, [password]);
 
-  // Handle Firebase user exists but registration incomplete
+  // Handle existing Firebase user
   const handleExistingFirebaseUser = async (firebaseUser) => {
     console.log('[DEBUG] Handling existing Firebase user:', firebaseUser.email);
     setLoading(true);
@@ -54,14 +58,12 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       const idToken = await firebaseUser.getIdToken();
       
       if (firebaseUser.emailVerified) {
-        // User exists in Firebase and email is verified, but registration might be incomplete
         if (onIncompleteRegistration) {
           await onIncompleteRegistration(firebaseUser);
         } else {
-          await onLoginSuccess(idToken, firebaseUser);
+          onLoginSuccess(idToken, firebaseUser);
         }
       } else {
-        // Email not verified - resend verification and wait
         await sendVerificationEmail(firebaseUser);
         onEmailRegistration(firebaseUser.email, firebaseUser);
         setMessage(`Verification email sent to ${firebaseUser.email}! Please verify your email to continue.`);
@@ -74,15 +76,95 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
   };
 
+  // Enhanced registration handler
+  const handleRegistration = async () => {
+    if (password !== confirmPassword) {
+      setError("Passwords don't match");
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError("Password should be at least 6 characters");
+      return;
+    }
+
+    try {
+      // Check if email exists and how
+      const methods = await checkEmailExists(email);
+      
+      if (methods.length > 0) {
+        if (methods.includes('google.com') && !methods.includes('password')) {
+          // Email exists with Google but not password - offer linking
+          setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
+          setError('This email is already registered with Google. Would you like to link a password to your Google account?');
+          return;
+        } else if (methods.includes('password')) {
+          // Email exists with password - suggest sign in
+          setError('An account with this email already exists. Please sign in instead.');
+          setIsLogin(true);
+          return;
+        }
+      }
+
+      // Create new account if no conflicts
+      const result = await registerWithEmailPassword(email, password);
+      const user = result.user;
+      
+      await sendVerificationEmail(user);
+      onEmailRegistration(user.email, user);
+      
+      setMessage(`Verification email sent to ${user.email}! Please check your inbox.`);
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      if (error.message === 'EMAIL_EXISTS_WITH_GOOGLE') {
+        setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
+        setError('This email is already registered with Google. Would you like to link a password to your Google account?');
+      } else if (error.message === 'EMAIL_ALREADY_IN_USE') {
+        setError('An account with this email already exists. Please sign in instead.');
+        setIsLogin(true);
+      } else {
+        setError(error.message);
+      }
+    }
+  };
+
+  // Handle account linking
+  const handleAccountLinking = async () => {
+    setLoading(true);
+    try {
+      // First sign in with Google
+      const googleResult = await signInWithGoogle();
+      const googleUser = googleResult.user;
+      
+      // Then link the email/password
+      await linkEmailPasswordToGoogle(email, password);
+      
+      setMessage('Your email and password have been successfully linked to your Google account!');
+      
+      // Proceed with login
+      const idToken = await googleUser.getIdToken();
+      onLoginSuccess(idToken, googleUser);
+      
+      setAccountRecoveryMode(null);
+    } catch (error) {
+      console.error('Account linking error:', error);
+      setError('Failed to link accounts. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setMessage('');
     setLoading(true);
+    setAccountRecoveryMode(null);
 
     try {
       if (isLogin) {
-        // Sign in
+        // Sign in logic
         const result = await signInWithEmailPassword(email, password);
         const user = result.user;
         
@@ -95,77 +177,30 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
         const idToken = await user.getIdToken();
         onLoginSuccess(idToken, user);
       } else {
-        // Register
-        if (password !== confirmPassword) {
-          setError("Passwords don't match");
-          setLoading(false);
-          return;
-        }
-        
-        if (password.length < 6) {
-          setError("Password should be at least 6 characters");
-          setLoading(false);
-          return;
-        }
-
-        // Create user account
-        const result = await registerWithEmailPassword(email, password);
-        const user = result.user;
-        
-        // Send verification email
-        await sendVerificationEmail(user);
-        
-        // Notify parent component about email registration
-        onEmailRegistration(user.email, user);
-        
-        setMessage(`Verification email sent to ${user.email}! Please check your inbox.`);
+        // Registration logic
+        await handleRegistration();
       }
     } catch (error) {
-      // Handle Firebase user already exists error
+      console.error('Authentication error:', error);
+      
       if (error.code === 'auth/email-already-in-use') {
-        console.log('[DEBUG] Firebase user already exists, attempting to handle...');
-        
-        try {
-          // Try to sign in to get the existing user
-          const signInResult = await signInWithEmailPassword(email, password);
-          await handleExistingFirebaseUser(signInResult.user);
-        } catch (signInError) {
-          if (signInError.code === 'auth/wrong-password') {
-            setError('An account with this email already exists. Please sign in or use a different email.');
-          } else if (signInError.code === 'auth/user-not-found') {
-            // This shouldn't happen, but handle it
-            setError('Account issue detected. Please try signing in with Google or contact support.');
-          } else {
-            setError('An account with this email already exists. Please sign in instead.');
-          }
+        // Fallback error handling
+        const methods = await checkEmailExists(email);
+        if (methods.includes('google.com')) {
+          setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
+          setError('This email is already registered with Google. Would you like to link a password to your Google account?');
+        } else {
+          setError('An account with this email already exists. Please sign in instead.');
+          setIsLogin(true);
         }
+      } else if (error.code === 'auth/wrong-password') {
+        setError('Incorrect password. Please try again or reset your password.');
+      } else if (error.code === 'auth/user-not-found') {
+        setError('No account found with this email. Please create a new account.');
+        setIsLogin(false);
       } else {
         setError(error.message);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Google sign-in for existing Firebase users
-  const handleGoogleSignInForRecovery = async () => {
-    setLoading(true);
-    try {
-      const result = await signInWithGoogle();
-      const user = result.user;
-
-      if (!user) throw new Error('No user returned from Firebase');
-
-      // Check if this might be a recovery scenario
-      if (onIncompleteRegistration) {
-        await onIncompleteRegistration(user);
-      } else {
-        const idToken = await user.getIdToken();
-        onLoginSuccess(idToken, user);
-      }
-    } catch (error) {
-      console.error('Error signing in with Google for recovery:', error);
-      setError('Error signing in with Google. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -230,6 +265,26 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
           Back to Main Login
         </button>
 
+        {/* Account Recovery Options */}
+        {accountRecoveryMode === 'LINK_GOOGLE_ACCOUNT' && (
+          <div className="recovery-option">
+            <div className="message-icon">🔄</div>
+            <div>
+              <p>Link your Google account with email/password:</p>
+              <button 
+                onClick={handleAccountLinking}
+                className="google-recovery-btn"
+                disabled={loading}
+              >
+                <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                  <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
+                </svg>
+                Link with Google
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Recovery Message */}
         {!isLogin && (
           <div className="recovery-message">
@@ -243,26 +298,6 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                   Sign in here
                 </button> to continue.
               </p>
-            </div>
-          </div>
-        )}
-
-        {/* Alternative Recovery Option */}
-        {error && error.includes('already exists') && (
-          <div className="recovery-option">
-            <div className="message-icon">🔄</div>
-            <div>
-              <p>Account recovery available:</p>
-              <button 
-                onClick={handleGoogleSignInForRecovery}
-                className="google-recovery-btn"
-                disabled={loading}
-              >
-                <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                  <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
-                </svg>
-                Recover with Google
-              </button>
             </div>
           </div>
         )}

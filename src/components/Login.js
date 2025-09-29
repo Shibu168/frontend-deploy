@@ -8,7 +8,6 @@ const Login = ({ onLoginSuccess, onEmailRegistration }) => {
   const [showEmailAuth, setShowEmailAuth] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [securityStatus, setSecurityStatus] = useState("secure"); 
-  // can be "secure" | "warning" | "danger"
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -35,13 +34,11 @@ const Login = ({ onLoginSuccess, onEmailRegistration }) => {
         })
       );
 
-      // Example: mark security as "secure" after login
       setSecurityStatus("secure");
-
       onLoginSuccess(idToken);
     } catch (error) {
       console.error("Error signing in with Google:", error);
-      setSecurityStatus("danger"); // show as danger if login fails
+      setSecurityStatus("danger");
     }
   };
 

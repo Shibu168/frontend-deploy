@@ -7,9 +7,12 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  sendEmailVerification, // Add this
-  applyActionCode, // Add this for email verification
-  checkActionCode // Add this for email verification
+  sendEmailVerification,
+  applyActionCode,
+  checkActionCode,
+  fetchSignInMethodsForEmail,
+  linkWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -30,8 +33,28 @@ export const signInWithGoogle = () => {
   return signInWithPopup(auth, provider);
 };
 
-export const registerWithEmailPassword = (email, password) => {
-  return createUserWithEmailAndPassword(auth, email, password);
+// Enhanced registration function that handles existing accounts
+export const registerWithEmailPassword = async (email, password) => {
+  try {
+    // Check if email already exists and how it's registered
+    const methods = await fetchSignInMethodsForEmail(auth, email);
+    
+    if (methods.length > 0) {
+      // If user exists with Google but not password, guide to link accounts
+      if (methods.includes('google.com') && !methods.includes('password')) {
+        throw new Error('EMAIL_EXISTS_WITH_GOOGLE');
+      }
+      // If email exists with password provider
+      else if (methods.includes('password')) {
+        throw new Error('EMAIL_ALREADY_IN_USE');
+      }
+    }
+    
+    // Create new account if email doesn't exist
+    return await createUserWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const signInWithEmailPassword = (email, password) => {
@@ -42,7 +65,6 @@ export const sendPasswordReset = (email) => {
   return sendPasswordResetEmail(auth, email);
 };
 
-// New email verification functions
 export const sendVerificationEmail = (user) => {
   return sendEmailVerification(user);
 };
@@ -53,4 +75,20 @@ export const verifyEmailAction = (oobCode) => {
 
 export const applyEmailVerification = (oobCode) => {
   return applyActionCode(auth, oobCode);
+};
+
+// Link email/password to existing Google account
+export const linkEmailPasswordToGoogle = async (email, password) => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user signed in');
+  }
+  
+  const credential = EmailAuthProvider.credential(email, password);
+  return await linkWithCredential(user, credential);
+};
+
+// Check email sign-in methods
+export const checkEmailExists = async (email) => {
+  return await fetchSignInMethodsForEmail(auth, email);
 };
