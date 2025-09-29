@@ -12,6 +12,8 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminLogin from './components/AdminLogin';
 import PrivateExamAccess from './components/Student/PrivateExamAccess';
 import ExamInterface from './components/Student/ExamInterface';
+import ExamEditForm from './components/Teacher/ExamEditForm';
+import ResultsView from './components/Teacher/ResultsView'; // Add this import
 
 import './App.css';
 
@@ -559,6 +561,48 @@ function AppContent() {
         path="/exam-interface" 
         element={
           user ? <ExamInterface user={user} /> : <Navigate to="/login" replace />
+        } 
+      />
+
+      {/* Teacher Exam Management Routes */}
+      <Route 
+        path="/teacher-dashboard/exams/:examId/edit" 
+        element={
+          user && userRole === 'teacher' ? (
+            <TeacherDashboard 
+              user={user} 
+              onLogout={handleLogout} 
+              initialActiveTab="edit"
+            />
+          ) : <Navigate to="/login" />
+        } 
+      />
+
+      {/* NEW: Teacher Results Routes */}
+      <Route 
+        path="/teacher-dashboard/exams/:examId/results" 
+        element={
+          user && userRole === 'teacher' ? (
+            <TeacherDashboard 
+              user={user} 
+              onLogout={handleLogout} 
+              initialActiveTab="results"
+            />
+          ) : <Navigate to="/login" />
+        } 
+      />
+
+      {/* NEW: Teacher Questions Management Route */}
+      <Route 
+        path="/teacher-dashboard/exams/:examId/questions" 
+        element={
+          user && userRole === 'teacher' ? (
+            <TeacherDashboard 
+              user={user} 
+              onLogout={handleLogout} 
+              initialActiveTab="questions"
+            />
+          ) : <Navigate to="/login" />
         } 
       />
 
