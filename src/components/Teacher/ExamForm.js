@@ -8,11 +8,13 @@ const ExamForm = ({ onExamCreated }) => {
     end_time: '',
     duration_minutes: 60,
     domain_restriction: '',
-    visibility: 'public'
+    visibility: 'public',
+    shared_emails: []
   });
   const [loading, setLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
   const [createdExam, setCreatedExam] = useState(null);
+  const [sharedEmailInput, setSharedEmailInput] = useState('');
 
   // Function to convert local datetime to UTC (fix for server expecting UTC)
   const convertToUTC = (localDateTimeString) => {
@@ -44,6 +46,23 @@ const ExamForm = ({ onExamCreated }) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
+    });
+  };
+
+  const handleAddEmail = () => {
+    if (sharedEmailInput && !formData.shared_emails.includes(sharedEmailInput)) {
+      setFormData({
+        ...formData,
+        shared_emails: [...formData.shared_emails, sharedEmailInput]
+      });
+      setSharedEmailInput('');
+    }
+  };
+
+  const handleRemoveEmail = (emailToRemove) => {
+    setFormData({
+      ...formData,
+      shared_emails: formData.shared_emails.filter(email => email !== emailToRemove)
     });
   };
 
@@ -99,7 +118,8 @@ const ExamForm = ({ onExamCreated }) => {
             end_time: '',
             duration_minutes: 60,
             domain_restriction: '',
-            visibility: 'public'
+            visibility: 'public',
+            shared_emails: []
           });
         }
       } else {
@@ -129,8 +149,10 @@ const ExamForm = ({ onExamCreated }) => {
       end_time: '',
       duration_minutes: 60,
       domain_restriction: '',
-      visibility: 'public'
+      visibility: 'public',
+      shared_emails: []
     });
+    setSharedEmailInput('');
   };
 
   const viewExamDetails = () => {
@@ -257,11 +279,52 @@ const ExamForm = ({ onExamCreated }) => {
                 />
                 Private (Access by link only)
               </label>
+              <label>
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="shared"
+                  checked={formData.visibility === 'shared'}
+                  onChange={handleChange}
+                />
+                Shared (Specific students by email)
+              </label>
             </div>
           </div>
+
+          {formData.visibility === 'shared' && (
+            <div className="form-group">
+              <label>Share with Students (Emails) *</label>
+              <div className="email-input-container">
+                <input
+                  type="email"
+                  value={sharedEmailInput}
+                  onChange={(e) => setSharedEmailInput(e.target.value)}
+                  placeholder="Enter student email"
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddEmail())}
+                />
+                <button type="button" onClick={handleAddEmail}>Add</button>
+              </div>
+              <div className="email-list">
+                {formData.shared_emails.map((email, index) => (
+                  <div key={index} className="email-tag">
+                    {email}
+                    <button type="button" onClick={() => handleRemoveEmail(email)}>×</button>
+                  </div>
+                ))}
+              </div>
+              {formData.shared_emails.length === 0 && (
+                <p className="warning">Please add at least one student email</p>
+              )}
+            </div>
+          )}
           
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              disabled={loading || (formData.visibility === 'shared' && formData.shared_emails.length === 0)}
+            >
               {loading ? 'Creating...' : 'Create Exam'}
             </button>
           </div>
