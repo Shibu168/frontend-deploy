@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth } from '../../firebase';
 import './ExamEditForm.css';
 
-const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
+const ExamEditForm = ({ exam, onExamUpdated, onBack, onNotification }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -62,6 +62,11 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
         shared_emails: [...prev.shared_emails, newSharedEmail.trim().toLowerCase()]
       }));
       setNewSharedEmail('');
+      if (onNotification) {
+        onNotification('Email added to shared list', 'success');
+      }
+    } else if (onNotification) {
+      onNotification('Email already exists in shared list', 'warning');
     }
   };
 
@@ -70,12 +75,19 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
       ...prev,
       shared_emails: prev.shared_emails.filter(e => e !== email)
     }));
+    if (onNotification) {
+      onNotification('Email removed from shared list', 'info');
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage('');
+    
+    if (onNotification) {
+      onNotification('Updating exam...', 'info');
+    }
     
     try {
       const token = await auth.currentUser.getIdToken();
@@ -108,14 +120,25 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
       }
 
       const updatedExam = await response.json();
-      setMessage('Exam updated successfully!');
+      const successMsg = 'Exam updated successfully!';
+      setMessage(successMsg);
       setMessageType('success');
+      
+      if (onNotification) {
+        onNotification(successMsg, 'success');
+      }
+      
       onExamUpdated(updatedExam);
       
     } catch (error) {
       console.error('Error updating exam:', error);
-      setMessage('Error updating exam: ' + error.message);
+      const errorMsg = 'Error updating exam: ' + error.message;
+      setMessage(errorMsg);
       setMessageType('error');
+      
+      if (onNotification) {
+        onNotification(errorMsg, 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -126,24 +149,50 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
       ...prev,
       visibility
     }));
+    
+    if (onNotification) {
+      onNotification(`Visibility changed to: ${visibility}`, 'info');
+    }
   };
 
   const copyShareableToken = async () => {
     if (exam.shareable_token) {
       try {
         await navigator.clipboard.writeText(exam.shareable_token);
-        setMessage('Shareable token copied to clipboard!');
+        const successMsg = 'Shareable token copied to clipboard!';
+        setMessage(successMsg);
         setMessageType('success');
+        
+        if (onNotification) {
+          onNotification(successMsg, 'success');
+        }
+        
         setTimeout(() => setMessage(''), 3000);
       } catch (error) {
-        setMessage('Failed to copy token');
+        const errorMsg = 'Failed to copy token';
+        setMessage(errorMsg);
         setMessageType('error');
+        
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
       }
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddSharedEmail();
+    }
+  };
+
   if (!exam) {
-    return <div>No exam selected</div>;
+    return (
+      <div className="exam-edit-form">
+        <div className="error-message">No exam selected</div>
+      </div>
+    );
   }
 
   return (
@@ -354,6 +403,7 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
                   type="email"
                   value={newSharedEmail}
                   onChange={(e) => setNewSharedEmail(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Enter student email"
                   className="email-input"
                 />
@@ -364,7 +414,7 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
               
               {formData.shared_emails.length > 0 && (
                 <div className="email-list">
-                  <h4>Shared With:</h4>
+                  <h4>Shared With ({formData.shared_emails.length}):</h4>
                   {formData.shared_emails.map((email, index) => (
                     <div key={index} className="email-item">
                       <span>{email}</span>

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getValidToken, isTokenValid, clearAuthData } from '../../utils/authHelpers';
 
-const PrivateExamAccess = ({ user, onLogin }) => {
+const PrivateExamAccess = ({ user, onLogin, onNotification }) => {
   const { token } = useParams();
   const navigate = useNavigate();
   const [exam, setExam] = useState(null);
@@ -17,7 +17,11 @@ const PrivateExamAccess = ({ user, onLogin }) => {
     const accessPrivateExam = async () => {
       // Check if token is provided
       if (!token || token === 'undefined') {
-        setError('Invalid exam link. Please check the URL and try again.');
+        const errorMsg = 'Invalid exam link. Please check the URL and try again.';
+        setError(errorMsg);
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
         setLoading(false);
         return;
       }
@@ -29,6 +33,9 @@ const PrivateExamAccess = ({ user, onLogin }) => {
       // Use the imported isTokenValid function
       if (!jwtToken || !isTokenValid(jwtToken)) {
         console.log('No valid token found, redirecting to login');
+        if (onNotification) {
+          onNotification('Please login to access the private exam', 'info');
+        }
         navigate('/login', { 
           state: { 
             returnUrl: `/exam/${token}`,
@@ -48,20 +55,29 @@ const PrivateExamAccess = ({ user, onLogin }) => {
           try {
             const userData = JSON.parse(storedUser);
             onLogin(userData);
+            if (onNotification) {
+              onNotification('User session restored', 'success');
+            }
             // Wait a moment for state update, then fetch exam
             setTimeout(() => fetchPrivateExam(jwtToken), 100);
           } catch (e) {
             console.error('Error parsing user data:', e);
+            if (onNotification) {
+              onNotification('Error restoring session. Please login again.', 'error');
+            }
             navigate('/login');
           }
         } else {
+          if (onNotification) {
+            onNotification('Please login to continue', 'info');
+          }
           navigate('/login');
         }
       }
     };
 
     accessPrivateExam();
-  }, [token, navigate, onLogin, user]);
+  }, [token, navigate, onLogin, user, onNotification]);
 
   const fetchPrivateExam = async (jwtToken) => {
     try {
@@ -90,6 +106,9 @@ const PrivateExamAccess = ({ user, onLogin }) => {
       
       if (response.status === 401) {
         // Token expired or invalid
+        if (onNotification) {
+          onNotification('Session expired. Please login again.', 'warning');
+        }
         clearAuthData(); // Use the imported function
         navigate('/login', { 
           state: { 
@@ -104,6 +123,9 @@ const PrivateExamAccess = ({ user, onLogin }) => {
         const data = await response.json();
         console.log('Exam data received:', data);
         setExam(data);
+        if (onNotification) {
+          onNotification('Private exam loaded successfully!', 'success');
+        }
       } else {
         const errorText = await response.text();
         let errorData;
@@ -113,21 +135,35 @@ const PrivateExamAccess = ({ user, onLogin }) => {
           errorData = { error: errorText || 'Failed to access private exam' };
         }
         console.error('Error response:', errorData);
-        setError(errorData.error || 'Failed to access private exam. Please check if the exam link is correct.');
+        const errorMsg = errorData.error || 'Failed to access private exam. Please check if the exam link is correct.';
+        setError(errorMsg);
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
       }
     } catch (error) {
       console.error('Network error:', error);
-      setError(error.message || 'Network error. Please check your connection and try again.');
+      const errorMsg = error.message || 'Network error. Please check your connection and try again.';
+      setError(errorMsg);
+      if (onNotification) {
+        onNotification(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleRetry = async () => {
+    if (onNotification) {
+      onNotification('Retrying to load exam...', 'info');
+    }
     const jwtToken = getValidToken(); // Use the imported function
     if (jwtToken) {
       await fetchPrivateExam(jwtToken);
     } else {
+      if (onNotification) {
+        onNotification('Please login again to access the exam', 'info');
+      }
       navigate('/login', { 
         state: { 
           returnUrl: `/exam/${token}`,
@@ -138,6 +174,9 @@ const PrivateExamAccess = ({ user, onLogin }) => {
   };
 
   const handleLoginRedirect = () => {
+    if (onNotification) {
+      onNotification('Redirecting to login...', 'info');
+    }
     navigate('/login', { 
       state: { 
         returnUrl: `/exam/${token}`,
@@ -146,7 +185,26 @@ const PrivateExamAccess = ({ user, onLogin }) => {
     });
   };
 
-  // ... rest of your component remains the same
+  const handleBackToDashboard = () => {
+    if (onNotification) {
+      onNotification('Returning to dashboard', 'info');
+    }
+    navigate('/student-dashboard');
+  };
+
+  const handleStartExam = () => {
+    console.log('Navigating to exam interface with data:', exam);
+    if (onNotification) {
+      onNotification('Starting private exam...', 'info');
+    }
+    navigate('/exam-interface', { 
+      state: { 
+        examData: exam,
+        isPrivateExam: true
+      } 
+    });
+  };
+
   if (loading) {
     return (
       <div className="private-exam-loading">
@@ -177,7 +235,7 @@ const PrivateExamAccess = ({ user, onLogin }) => {
               Login Again
             </button>
             <button 
-              onClick={() => navigate('/student-dashboard')} 
+              onClick={handleBackToDashboard} 
               className="btn btn-outline"
             >
               Back to Dashboard
@@ -202,7 +260,6 @@ const PrivateExamAccess = ({ user, onLogin }) => {
   }
 
   return (
-    
     <div className="private-exam-access">
       <div className="container">
         <div className="exam-card">
@@ -245,22 +302,13 @@ const PrivateExamAccess = ({ user, onLogin }) => {
 
           <div className="exam-actions">
             <button 
-              onClick={() => navigate('/student-dashboard')}
+              onClick={handleBackToDashboard}
               className="btn btn-secondary"
             >
               Back to Dashboard
             </button>
-            // In PrivateExamAccess.js - Update the Start Exam button
             <button 
-              onClick={() => {
-                console.log('Navigating to exam interface with data:', exam);
-                navigate('/exam-interface', { 
-                  state: { 
-                    examData: exam,
-                    isPrivateExam: true
-                  } 
-                });
-              }}
+              onClick={handleStartExam}
               className="btn btn-primary start-exam-btn"
             >
               Start Exam Now

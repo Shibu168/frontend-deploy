@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './Results.css';
 
-const Results = () => {
+const Results = ({ onNotification }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,11 +41,48 @@ const Results = () => {
 
       const data = await response.json();
       setResults(data);
+      if (onNotification) {
+        onNotification(`Loaded ${data.length} exam results`, 'success');
+      }
     } catch (error) {
-      setError('Error fetching results');
+      const errorMsg = 'Error fetching results';
+      setError(errorMsg);
+      if (onNotification) {
+        onNotification(`${errorMsg}: ${error.message}`, 'error');
+      }
       console.error('Error fetching results:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetry = () => {
+    if (onNotification) {
+      onNotification('Retrying to load results...', 'info');
+    }
+    setLoading(true);
+    setError('');
+    fetchResults();
+  };
+
+  const handleRefresh = () => {
+    if (onNotification) {
+      onNotification('Refreshing results...', 'info');
+    }
+    fetchResults();
+  };
+
+  const viewDetails = (result) => {
+    setSelectedResult(result);
+    if (onNotification) {
+      onNotification(`Viewing details for: ${result.exam.title}`, 'info');
+    }
+  };
+
+  const closeDetails = () => {
+    setSelectedResult(null);
+    if (onNotification) {
+      onNotification('Closed result details', 'info');
     }
   };
 
@@ -61,14 +98,6 @@ const Results = () => {
     if (percentage >= 70) return 'Good';
     if (percentage >= 50) return 'Average';
     return 'Needs Improvement';
-  };
-
-  const viewDetails = (result) => {
-    setSelectedResult(result);
-  };
-
-  const closeDetails = () => {
-    setSelectedResult(null);
   };
 
   if (loading) {
@@ -97,7 +126,7 @@ const Results = () => {
           <div className="error-icon">⚠️</div>
           <h3>Unable to load results</h3>
           <p>{error}</p>
-          <button onClick={fetchResults} className="retry-btn">
+          <button onClick={handleRetry} className="retry-btn">
             Try Again
           </button>
         </div>
@@ -135,7 +164,7 @@ const Results = () => {
           <div className="no-results-icon">📊</div>
           <h3>No Results Yet</h3>
           <p>Complete some exams to see your results here.</p>
-          <button onClick={fetchResults} className="refresh-btn">
+          <button onClick={handleRefresh} className="refresh-btn">
             Refresh
           </button>
         </div>

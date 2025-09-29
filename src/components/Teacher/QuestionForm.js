@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const QuestionForm = ({ exam, onBack }) => {
+const QuestionForm = ({ exam, onBack, onNotification }) => {
   const [questions, setQuestions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
@@ -27,6 +27,9 @@ const QuestionForm = ({ exam, onBack }) => {
     // Don't try to fetch if no exam ID
     if (!exam || !exam.id) {
       console.log('No exam ID available, skipping fetch');
+      if (onNotification) {
+        onNotification('No exam ID available', 'warning');
+      }
       return;
     }
 
@@ -38,7 +41,15 @@ const QuestionForm = ({ exam, onBack }) => {
       console.log('Fetching questions for exam:', exam.id);
       
       if (!API_BASE) {
-        throw new Error('Backend URL not configured');
+        const errorMsg = 'Backend URL not configured';
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
+        throw new Error(errorMsg);
+      }
+
+      if (onNotification) {
+        onNotification('Loading questions...', 'info');
       }
 
       const response = await fetch(`${API_BASE}/api/teacher/exams/${exam.id}/questions`, {
@@ -56,16 +67,27 @@ const QuestionForm = ({ exam, onBack }) => {
       // Check if it's HTML
       if (responseText.trim().startsWith('<!DOCTYPE') || responseText.includes('<html')) {
         console.error('Full HTML response:', responseText);
-        throw new Error('Server returned HTML instead of JSON. Check if the API endpoint exists.');
+        const errorMsg = 'Server returned HTML instead of JSON. Check if the API endpoint exists.';
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
+        throw new Error(errorMsg);
       }
       
       // Try to parse as JSON
       try {
         const questions = JSON.parse(responseText);
         setQuestions(questions);
+        if (onNotification) {
+          onNotification(`Loaded ${questions.length} questions`, 'success');
+        }
       } catch (parseError) {
         console.error('Failed to parse response as JSON:', parseError);
-        throw new Error(`Server returned non-JSON response: ${responseText.substring(0, 100)}`);
+        const errorMsg = `Server returned non-JSON response: ${responseText.substring(0, 100)}`;
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
+        throw new Error(errorMsg);
       }
       
     } catch (error) {
@@ -73,6 +95,9 @@ const QuestionForm = ({ exam, onBack }) => {
       setError(error.message);
       
       if (error.message.includes('401') || error.message.includes('403')) {
+        if (onNotification) {
+          onNotification('Authentication failed. Redirecting to login...', 'error');
+        }
         localStorage.removeItem('token');
         window.location.href = '/login';
       }
@@ -109,7 +134,11 @@ const QuestionForm = ({ exam, onBack }) => {
     
     try {
       if (!API_BASE) {
-        throw new Error('Backend URL not configured');
+        const errorMsg = 'Backend URL not configured';
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
+        throw new Error(errorMsg);
       }
 
       const formDataToSend = new FormData();
@@ -128,6 +157,10 @@ const QuestionForm = ({ exam, onBack }) => {
       
       const method = editingQuestion ? 'PATCH' : 'POST';
       
+      if (onNotification) {
+        onNotification(editingQuestion ? 'Updating question...' : 'Adding question...', 'info');
+      }
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -137,7 +170,10 @@ const QuestionForm = ({ exam, onBack }) => {
       });
       
       if (response.ok) {
-        alert(editingQuestion ? 'Question updated!' : 'Question added!');
+        const successMsg = editingQuestion ? 'Question updated!' : 'Question added!';
+        if (onNotification) {
+          onNotification(successMsg, 'success');
+        }
         setShowForm(false);
         setFormData({
           question_text: '',
@@ -154,7 +190,9 @@ const QuestionForm = ({ exam, onBack }) => {
       }
     } catch (error) {
       console.error('Error saving question:', error);
-      alert(`Error saving question: ${error.message}`);
+      if (onNotification) {
+        onNotification(`Error saving question: ${error.message}`, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -169,32 +207,53 @@ const QuestionForm = ({ exam, onBack }) => {
       marks: question.marks
     });
     setShowForm(true);
+    if (onNotification) {
+      onNotification(`Editing question: ${question.question_text?.substring(0, 50)}...`, 'info');
+    }
   };
 
   const handleDelete = async (questionId) => {
-    if (window.confirm('Are you sure you want to delete this question?')) {
-      try {
-        if (!API_BASE) {
-          throw new Error('Backend URL not configured');
-        }
+    const questionToDelete = questions.find(q => q.id === questionId);
+    if (!window.confirm('Are you sure you want to delete this question?')) {
+      if (onNotification) {
+        onNotification('Deletion cancelled', 'info');
+      }
+      return;
+    }
 
-        const response = await fetch(`${API_BASE}/api/teacher/questions/${questionId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          alert('Question deleted successfully');
-          fetchQuestions();
-        } else {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    try {
+      if (!API_BASE) {
+        const errorMsg = 'Backend URL not configured';
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
         }
-      } catch (error) {
-        console.error('Error deleting question:', error);
-        alert(`Error deleting question: ${error.message}`);
+        throw new Error(errorMsg);
+      }
+
+      if (onNotification) {
+        onNotification('Deleting question...', 'info');
+      }
+
+      const response = await fetch(`${API_BASE}/api/teacher/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        if (onNotification) {
+          onNotification('Question deleted successfully', 'success');
+        }
+        fetchQuestions();
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error deleting question:', error);
+      if (onNotification) {
+        onNotification(`Error deleting question: ${error.message}`, 'error');
       }
     }
   };
@@ -202,7 +261,15 @@ const QuestionForm = ({ exam, onBack }) => {
   const handlePublish = async () => {
     try {
       if (!API_BASE) {
-        throw new Error('Backend URL not configured');
+        const errorMsg = 'Backend URL not configured';
+        if (onNotification) {
+          onNotification(errorMsg, 'error');
+        }
+        throw new Error(errorMsg);
+      }
+
+      if (onNotification) {
+        onNotification('Publishing exam...', 'info');
       }
 
       const response = await fetch(`${API_BASE}/api/teacher/exams/${exam.id}/publish`, {
@@ -215,7 +282,10 @@ const QuestionForm = ({ exam, onBack }) => {
       
       if (response.ok) {
         const result = await response.json();
-        alert('Exam published successfully! Share this token with students: ' + result.token);
+        const successMsg = 'Exam published successfully! Share this token with students: ' + result.token;
+        if (onNotification) {
+          onNotification(successMsg, 'success');
+        }
         onBack(); // Go back to exam list
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to publish exam' }));
@@ -223,8 +293,26 @@ const QuestionForm = ({ exam, onBack }) => {
       }
     } catch (error) {
       console.error('Error publishing exam:', error);
-      alert(`Error publishing exam: ${error.message}`);
+      if (onNotification) {
+        onNotification(`Error publishing exam: ${error.message}`, 'error');
+      }
     }
+  };
+
+  const handleToggleForm = () => {
+    setShowForm(!showForm);
+    if (!showForm && onNotification) {
+      onNotification('Adding new question', 'info');
+    } else if (onNotification) {
+      onNotification('Cancelled question form', 'info');
+    }
+  };
+
+  const handleBack = () => {
+    if (onNotification) {
+      onNotification('Returning to exam list', 'info');
+    }
+    onBack();
   };
 
   return (
@@ -232,9 +320,9 @@ const QuestionForm = ({ exam, onBack }) => {
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <h2>Manage Questions for {exam.title}</h2>
         <div>
-          <button onClick={onBack} className="btn btn-secondary">Back to Exams</button>
+          <button onClick={handleBack} className="btn btn-secondary">Back to Exams</button>
           {exam.status === 'draft' && (
-            <button onClick={() => setShowForm(!showForm)} className="btn btn-primary" style={{marginLeft: '10px'}}>
+            <button onClick={handleToggleForm} className="btn btn-primary" style={{marginLeft: '10px'}}>
               {showForm ? 'Cancel' : 'Add Question'}
             </button>
           )}

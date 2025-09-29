@@ -1,7 +1,7 @@
 // SecureBrowserWrapper.js
 import React, { useState, useEffect, useRef } from 'react';
 
-const SecureBrowserWrapper = ({ children, examData }) => {
+const SecureBrowserWrapper = ({ children, examData, onNotification }) => {
   const [securityStatus, setSecurityStatus] = useState({
     fullScreen: false,
     monitoringActive: true,
@@ -28,9 +28,15 @@ const SecureBrowserWrapper = ({ children, examData }) => {
       }
       
       setSecurityStatus(prev => ({ ...prev, fullScreen: true }));
+      if (onNotification) {
+        onNotification('Full screen mode activated', 'success');
+      }
     } catch (error) {
       console.error('Full screen failed:', error);
       logSecurityEvent('full_screen_failure', { error: error.message });
+      if (onNotification) {
+        onNotification('Full screen activation failed', 'error');
+      }
     }
   };
 
@@ -144,12 +150,20 @@ const SecureBrowserWrapper = ({ children, examData }) => {
       "Final warning: Next violation will auto-submit your exam."
     ];
     
-    alert(warnings[count - 1]);
+    const warningMessage = warnings[count - 1];
+    
+    if (onNotification) {
+      onNotification(warningMessage, 'warning');
+    }
   };
 
   const handleCriticalViolation = () => {
     logSecurityEvent('exam_terminated', { reason: 'excessive_violations' });
-    alert('Exam terminated due to multiple security violations.');
+    
+    if (onNotification) {
+      onNotification('Exam terminated due to multiple security violations.', 'error');
+    }
+    
     window.dispatchEvent(new CustomEvent('exam-violation-termination'));
   };
 
@@ -175,6 +189,10 @@ const SecureBrowserWrapper = ({ children, examData }) => {
     // Log exam start
     logSecurityEvent('exam_started', { examData });
 
+    if (onNotification) {
+      onNotification('Security monitoring activated', 'success');
+    }
+
     return () => {
       document.removeEventListener('keydown', disableKeyboardShortcuts);
       document.removeEventListener('contextmenu', preventContextMenu);
@@ -190,19 +208,34 @@ const SecureBrowserWrapper = ({ children, examData }) => {
     
     if (!isFullScreen) {
       handleSecurityViolation('full_screen_exit');
+      if (onNotification) {
+        onNotification('Full screen mode required! Returning to full screen...', 'warning');
+      }
       setTimeout(enforceFullScreen, 1000);
+    } else {
+      if (onNotification) {
+        onNotification('Full screen mode restored', 'success');
+      }
     }
   };
 
   const handleVisibilityChange = () => {
     if (document.hidden) {
       handleSecurityViolation('tab_switch', { hidden: document.hidden });
+      if (onNotification) {
+        onNotification('Tab switch detected! Please stay on this tab.', 'warning');
+      }
     }
   };
 
   const handleBeforeUnload = (e) => {
     e.preventDefault();
     e.returnValue = 'Are you sure you want to leave? This may terminate your exam.';
+    
+    if (onNotification) {
+      onNotification('Attempt to leave page detected. Exam may be terminated.', 'warning');
+    }
+    
     return e.returnValue;
   };
 
