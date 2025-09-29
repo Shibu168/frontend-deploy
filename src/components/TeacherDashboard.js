@@ -17,6 +17,44 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+
+  // Notification system
+  const showNotification = (message, type = 'info') => {
+    const id = Date.now() + Math.random();
+    const notification = {
+      id,
+      message,
+      type,
+      timestamp: new Date()
+    };
+    
+    setNotifications(prev => [...prev, notification]);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      removeNotification(id);
+    }, 5000);
+  };
+
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Enhanced error handling
+  const handleApiError = (error, context = 'Operation') => {
+    console.error(`${context}:`, error);
+    const errorMessage = error.message || `Failed to ${context.toLowerCase()}`;
+    showNotification(`${context} failed: ${errorMessage}`, 'error');
+  };
+
+  const handleSuccess = (message) => {
+    showNotification(message, 'success');
+  };
+
+  const handleInfo = (message) => {
+    showNotification(message, 'info');
+  };
 
   // Load theme preference on mount
   useEffect(() => {
@@ -68,12 +106,13 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
       if (response.ok) {
         const examData = await response.json();
         setSelectedExam(examData);
+        handleInfo(`Loaded exam: ${examData.title}`);
       } else {
-        console.error('Failed to fetch exam');
+        handleApiError(new Error('Failed to fetch exam'), 'Loading exam');
         navigate('/teacher-dashboard');
       }
     } catch (error) {
-      console.error('Error fetching exam:', error);
+      handleApiError(error, 'Loading exam');
       navigate('/teacher-dashboard');
     }
   };
@@ -81,20 +120,32 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
   const handleEditExam = (exam) => {
     setSelectedExam(exam);
     setActiveTab('edit');
+    handleInfo(`Editing exam: ${exam.title}`);
   };
 
   const handleViewResults = (exam) => {
     setSelectedExam(exam);
     setActiveTab('results');
+    handleInfo(`Viewing results for: ${exam.title}`);
   };
 
   const handleManageQuestions = (exam) => {
     setSelectedExam(exam);
     setActiveTab('questions');
+    handleInfo(`Managing questions for: ${exam.title}`);
   };
 
   const handleExamUpdated = (updatedExam) => {
     setSelectedExam(updatedExam);
+    handleSuccess('Exam updated successfully!');
+  };
+
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    if (tabName === 'exams') {
+      setSelectedExam(null);
+      handleInfo('Viewing all exams');
+    }
   };
 
   // Theme toggle function
@@ -104,9 +155,11 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
     if (newTheme) {
       document.documentElement.classList.add('dark-theme');
       localStorage.setItem('examNest-theme', 'dark');
+      handleInfo('Dark mode enabled');
     } else {
       document.documentElement.classList.remove('dark-theme');
       localStorage.setItem('examNest-theme', 'light');
+      handleInfo('Light mode enabled');
     }
   };
 
@@ -117,18 +170,25 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
   const handleConfirmLogout = () => {
     setIsLoggingOut(true);
     setShowLogoutConfirm(false);
+    handleInfo('Logging out...');
+    
     setTimeout(() => {
       signOut(auth).then(() => {
-        onLogout();
-        navigate('/login');
+        handleSuccess('Logged out successfully');
+        setTimeout(() => {
+          onLogout();
+          navigate('/login');
+        }, 500);
       }).catch((error) => {
-        console.error('Logout error:', error);
+        handleApiError(error, 'Logout');
+        setIsLoggingOut(false);
       });
     }, 1000);
   };
 
   const handleCancelLogout = () => {
     setShowLogoutConfirm(false);
+    handleInfo('Logout cancelled');
   };
 
   // Get user display name
@@ -430,12 +490,78 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
       zIndex: 80,
       minHeight: 'calc(100vh - 140px)',
     },
+    // Notification styles
+    notificationContainer: {
+      position: 'fixed',
+      top: '100px',
+      right: '20px',
+      zIndex: 2000,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      maxWidth: '400px',
+    },
+    notification: {
+      padding: '15px 20px',
+      borderRadius: '12px',
+      backdropFilter: 'blur(20px)',
+      border: isDark 
+        ? '2px solid rgba(0, 255, 150, 0.2)' 
+        : '2px solid rgba(14, 165, 233, 0.2)',
+      boxShadow: isDark
+        ? '0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 255, 150, 0.1) inset'
+        : '0 4px 20px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.1) inset',
+      color: isDark ? '#f8fafc' : '#0f172a',
+      fontSize: '14px',
+      fontWeight: '500',
+      transition: 'all 0.3s ease',
+      animation: 'confirmDialogSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      maxWidth: '350px',
+      wordWrap: 'break-word',
+      cursor: 'pointer',
+    },
+    notificationSuccess: {
+      background: isDark 
+        ? 'rgba(16, 185, 129, 0.15)' 
+        : 'rgba(16, 185, 129, 0.1)',
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.4)' : 'rgba(16, 185, 129, 0.3)',
+    },
+    notificationError: {
+      background: isDark 
+        ? 'rgba(239, 68, 68, 0.15)' 
+        : 'rgba(239, 68, 68, 0.1)',
+      borderColor: isDark ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.3)',
+    },
+    notificationInfo: {
+      background: isDark 
+        ? 'rgba(59, 130, 246, 0.15)' 
+        : 'rgba(59, 130, 246, 0.1)',
+      borderColor: isDark ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)',
+    },
   });
 
   const styles = getStyles(isDarkMode);
 
   return (
     <div style={styles.container}>
+      {/* Notification Container */}
+      <div style={styles.notificationContainer}>
+        {notifications.map(notification => (
+          <div
+            key={notification.id}
+            style={{
+              ...styles.notification,
+              ...(notification.type === 'success' ? styles.notificationSuccess : {}),
+              ...(notification.type === 'error' ? styles.notificationError : {}),
+              ...(notification.type === 'info' ? styles.notificationInfo : {}),
+            }}
+            onClick={() => removeNotification(notification.id)}
+          >
+            {notification.message}
+          </div>
+        ))}
+      </div>
+      
       {/* Background Overlay */}
       <div style={styles.containerOverlay}></div>
       
@@ -568,10 +694,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             ...styles.navButton,
             ...(activeTab === 'exams' ? styles.navButtonActive : {})
           }}
-          onClick={() => {
-            setActiveTab('exams');
-            setSelectedExam(null);
-          }}
+          onClick={() => handleTabChange('exams')}
           onMouseEnter={(e) => {
             if (activeTab !== 'exams') {
               Object.assign(e.target.style, styles.navButtonHover);
@@ -591,7 +714,10 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             ...styles.navButton,
             ...(activeTab === 'create' ? styles.navButtonActive : {})
           }}
-          onClick={() => setActiveTab('create')}
+          onClick={() => {
+            setActiveTab('create');
+            handleInfo('Creating new exam');
+          }}
           onMouseEnter={(e) => {
             if (activeTab !== 'create') {
               Object.assign(e.target.style, styles.navButtonHover);
@@ -678,6 +804,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             onExamSelect={handleManageQuestions}
             onEditExam={handleEditExam}
             onViewResults={handleViewResults}
+            onNotification={showNotification}
           />
         )}
         
@@ -686,7 +813,9 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             onExamCreated={(exam) => {
               setSelectedExam(exam);
               setActiveTab('questions');
+              handleSuccess(`Exam "${exam.title}" created successfully!`);
             }}
+            onNotification={showNotification}
           />
         )}
         
@@ -698,6 +827,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
               setActiveTab('exams');
               setSelectedExam(null);
             }}
+            onNotification={showNotification}
           />
         )}
         
@@ -705,6 +835,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
           <QuestionForm 
             exam={selectedExam}
             onBack={() => setActiveTab('exams')}
+            onNotification={showNotification}
           />
         )}
         
@@ -712,6 +843,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
           <ResultsView 
             exam={selectedExam}
             onBack={() => setActiveTab('exams')}
+            onNotification={showNotification}
           />
         )}
       </div>
