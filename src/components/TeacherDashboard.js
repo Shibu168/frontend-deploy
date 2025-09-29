@@ -6,6 +6,7 @@ import ExamList from './Teacher/ExamList';
 import ExamForm from './Teacher/ExamForm';
 import QuestionForm from './Teacher/QuestionForm';
 import ResultsView from './Teacher/ResultsView';
+import ExamEditForm from './Teacher/ExamEditForm'; // New component for editing exams
 import './TeacherDashboard.css';
 
 const TeacherDashboard = ({ user, onLogout }) => {
@@ -534,46 +535,65 @@ const TeacherDashboard = ({ user, onLogout }) => {
           <span style={{ position: 'relative', zIndex: 1 }}>Create Exam</span>
         </button>
         {selectedExam && (
-          <button 
-            style={{
-              ...styles.navButton,
-              ...(activeTab === 'questions' ? styles.navButtonActive : {})
-            }}
-            onClick={() => setActiveTab('questions')}
-            onMouseEnter={(e) => {
-              if (activeTab !== 'questions') {
-                Object.assign(e.target.style, styles.navButtonHover);
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (activeTab !== 'questions') {
-                Object.assign(e.target.style, styles.navButton);
-              }
-            }}
-          >
-            <span style={{ position: 'relative', zIndex: 1 }}>Manage Questions</span>
-          </button>
-        )}
-        {selectedExam && (
-          <button 
-            style={{
-              ...styles.navButton,
-              ...(activeTab === 'results' ? styles.navButtonActive : {})
-            }}
-            onClick={() => setActiveTab('results')}
-            onMouseEnter={(e) => {
-              if (activeTab !== 'results') {
-                Object.assign(e.target.style, styles.navButtonHover);
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (activeTab !== 'results') {
-                Object.assign(e.target.style, styles.navButton);
-              }
-            }}
-          >
-            <span style={{ position: 'relative', zIndex: 1 }}>View Results</span>
-          </button>
+          <>
+            <button 
+              style={{
+                ...styles.navButton,
+                ...(activeTab === 'edit' ? styles.navButtonActive : {})
+              }}
+              onClick={() => setActiveTab('edit')}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'edit') {
+                  Object.assign(e.target.style, styles.navButtonHover);
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'edit') {
+                  Object.assign(e.target.style, styles.navButton);
+                }
+              }}
+            >
+              <span style={{ position: 'relative', zIndex: 1 }}>Edit Exam</span>
+            </button>
+            <button 
+              style={{
+                ...styles.navButton,
+                ...(activeTab === 'questions' ? styles.navButtonActive : {})
+              }}
+              onClick={() => setActiveTab('questions')}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'questions') {
+                  Object.assign(e.target.style, styles.navButtonHover);
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'questions') {
+                  Object.assign(e.target.style, styles.navButton);
+                }
+              }}
+            >
+              <span style={{ position: 'relative', zIndex: 1 }}>Manage Questions</span>
+            </button>
+            <button 
+              style={{
+                ...styles.navButton,
+                ...(activeTab === 'results' ? styles.navButtonActive : {})
+              }}
+              onClick={() => setActiveTab('results')}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'results') {
+                  Object.assign(e.target.style, styles.navButtonHover);
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'results') {
+                  Object.assign(e.target.style, styles.navButton);
+                }
+              }}
+            >
+              <span style={{ position: 'relative', zIndex: 1 }}>View Results</span>
+            </button>
+          </>
         )}
       </nav>
       
@@ -583,7 +603,7 @@ const TeacherDashboard = ({ user, onLogout }) => {
             onSelectExam={setSelectedExam}
             onExamSelect={(exam) => {
               setSelectedExam(exam);
-              setActiveTab('questions');
+              setActiveTab('edit');
             }}
           />
         )}
@@ -594,6 +614,17 @@ const TeacherDashboard = ({ user, onLogout }) => {
               setSelectedExam(exam);
               setActiveTab('questions');
             }}
+          />
+        )}
+        
+        {activeTab === 'edit' && selectedExam && (
+          <ExamEditForm 
+            exam={selectedExam}
+            onExamUpdated={(updatedExam) => {
+              setSelectedExam(updatedExam);
+              // Optionally show success message or refresh data
+            }}
+            onBack={() => setActiveTab('exams')}
           />
         )}
         
