@@ -37,7 +37,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       examSource?.examDetails?.duration_minutes,
       examSource?.duration,
       examSource?.exam?.duration,
-      examSource?.time_limit, // common alternative
+      examSource?.time_limit,
       examSource?.exam?.time_limit
     ];
     
@@ -48,12 +48,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         const parsed = parseInt(duration);
         if (!isNaN(parsed)) {
           console.log('Using duration from value:', duration, 'parsed as:', parsed);
-          
-          // Check if this might be in hours (value 1 for 1 hour instead of 1 minute)
-          if (parsed === 1) {
-            console.warn('Duration is 1 - this might be in hours. Check your data structure.');
-          }
-          
           return parsed;
         }
       }
@@ -82,6 +76,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [examData, setExamData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attemptData, setAttemptData] = useState(null);
 
   // Proctoring constants
   const MAX_TAB_SWITCHES = 3;
@@ -95,7 +90,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     console.log('ExamInterface - Location state:', location.state);
     console.log('ExamInterface - Exam data from state:', examFromState);
     console.log('ExamInterface - Current examData state:', examData);
-  }, [location.state, examFromState, examData]);
+    console.log('ExamInterface - Attempt data:', attemptData);
+  }, [location.state, examFromState, examData, attemptData]);
 
   // Debug effect to track duration issues
   useEffect(() => {
@@ -110,9 +106,10 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       console.log('Tab Switch Count:', tabSwitchCount);
       console.log('Full Screen Status:', isFullScreen);
       console.log('Exam Paused:', isPaused);
+      console.log('Attempt Data:', attemptData);
       console.log('==========================');
     }
-  }, [examData, validatedDuration, timeLeft, examDuration, tabSwitchCount, isFullScreen, isPaused]);
+  }, [examData, validatedDuration, timeLeft, examDuration, tabSwitchCount, isFullScreen, isPaused, attemptData]);
 
   // Handle exam data from location state or props
   useEffect(() => {
@@ -122,6 +119,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       const duration = getExamDuration(examFromState);
       setTimeLeft(duration * 60);
       setLoading(false);
+      
+      // Extract attempt data from exam data
+      if (examFromState.attemptId || examFromState.sessionToken) {
+        setAttemptData({
+          attemptId: examFromState.attemptId,
+          sessionToken: examFromState.sessionToken
+        });
+      }
     }
     
     if (exam && !examData) {
@@ -129,6 +134,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       setExamData(exam);
       const duration = getExamDuration();
       setTimeLeft(duration * 60);
+      
+      // Extract attempt data from exam data
+      if (exam.attemptId || exam.sessionToken) {
+        setAttemptData({
+          attemptId: exam.attemptId,
+          sessionToken: exam.sessionToken
+        });
+      }
     }
   }, [exam, examFromState, examData]);
 
@@ -367,26 +380,93 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     return examData.exam?.id || examData.id;
   };
 
-  const startExam = () => {
+  // NEW: Function to create or get attempt data
+  const initializeExamAttempt = async () => {
+    if (!examData) {
+      alert('Exam data is not available. Please try again.');
+      return false;
+    }
+
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem('token');
+      const examId = getExamId();
+
+      if (!examId) {
+        throw new Error('Exam ID not available');
+      }
+
+      console.log('Initializing exam attempt for exam ID:', examId);
+
+      // Start exam attempt
+      const response = await fetch(`${API_BASE}/api/student/exams/${examId}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const attemptData = await response.json();
+        console.log('Exam attempt started:', attemptData);
+        
+        // Store attempt data
+        setAttemptData({
+          attemptId: attemptData.attemptId,
+          sessionToken: attemptData.sessionToken
+        });
+        
+        return true;
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start exam attempt');
+      }
+    } catch (error) {
+      console.error('Error starting exam attempt:', error);
+      alert('Failed to start exam: ' + error.message);
+      return false;
+    }
+  };
+
+  const startExam = async () => {
     if (!examData || getQuestions().length === 0) {
       alert('Exam data is not available. Please try again.');
       return;
     }
+
+    setLoading(true);
     
-    // Initialize proctoring
-    setTabSwitchCount(0);
-    proctoringRef.current = {
-      tabSwitchCount: 0,
-      lastSwitchTime: null,
-      isMonitoring: true
-    };
-    
-    setExamStarted(true);
-    
-    // Attempt to enter full screen
-    setTimeout(() => {
-      requestFullScreen();
-    }, 500);
+    try {
+      // Initialize exam attempt if not already present
+      if (!attemptData) {
+        const attemptInitialized = await initializeExamAttempt();
+        if (!attemptInitialized) {
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Initialize proctoring
+      setTabSwitchCount(0);
+      proctoringRef.current = {
+        tabSwitchCount: 0,
+        lastSwitchTime: null,
+        isMonitoring: true
+      };
+      
+      setExamStarted(true);
+      
+      // Attempt to enter full screen
+      setTimeout(() => {
+        requestFullScreen();
+      }, 500);
+    } catch (error) {
+      console.error('Error starting exam:', error);
+      alert('Failed to start exam: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAnswerSelect = (questionId, option) => {
@@ -451,18 +531,25 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         throw new Error('Exam ID not available');
       }
 
-      // Use the ref to get the latest answers (especially important for auto-submit)
+      // Check if we have attempt data
+      if (!attemptData || !attemptData.attemptId) {
+        throw new Error('Exam attempt not properly initialized. Please contact support.');
+      }
+
+      // Use the ref to get the latest answers
       const currentAnswers = answersRef.current;
       
-      console.log('Submitting exam with answers:', currentAnswers);
-      console.log('Is auto-submit?', isAutoSubmit);
-      console.log('Tab switch count:', tabSwitchCount);
-      console.log('Violation type:', violationType);
-      console.log('Full screen status during submission:', isFullScreen);
+      console.log('Submitting exam with data:', {
+        examId: examId,
+        attemptId: attemptData.attemptId,
+        answersCount: Object.keys(currentAnswers).length,
+        isAutoSubmit: isAutoSubmit,
+        violationType: violationType
+      });
 
       const submissionData = {
-        attemptId: examData.attemptId,
-        sessionToken: examData.sessionToken,
+        attemptId: attemptData.attemptId,
+        sessionToken: attemptData.sessionToken,
         answers: Object.entries(currentAnswers).map(([questionId, answer]) => ({
           questionId: parseInt(questionId),
           answer: answer
@@ -476,6 +563,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           examPaused: isPaused
         }
       };
+
+      console.log('Submission data being sent:', submissionData);
 
       const response = await fetch(`${API_BASE}/api/student/exams/${examId}/submit`, {
         method: 'POST',
@@ -510,11 +599,12 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         
       } else {
         const errorData = await response.json();
-        alert('Failed to submit exam: ' + errorData.error);
+        console.error('Backend submission error:', errorData);
+        throw new Error(errorData.error || 'Failed to submit exam');
       }
     } catch (error) {
       console.error('Error submitting exam:', error);
-      alert('Error submitting exam. Please try again.');
+      alert('Error submitting exam: ' + error.message);
     } finally {
       setLoading(false);
       setIsSubmitting(false);
@@ -523,10 +613,10 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   const handleAutoSubmit = () => {
     console.log('Time is up! Auto-submitting exam...');
-    console.log('Current answers state:', answers);
     console.log('Current answers ref:', answersRef.current);
     console.log('Tab switch count:', tabSwitchCount);
     console.log('Full screen status:', isFullScreen);
+    console.log('Attempt data:', attemptData);
     
     // Get the latest answers from ref to ensure we have all selected options
     const currentAnswers = answersRef.current;
@@ -609,8 +699,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
             <button onClick={navigateToDashboard} className="btn btn-secondary">
               Back to Dashboard
             </button>
-            <button onClick={startExam} className="btn btn-primary">
-              Start Exam in Full Screen
+            <button onClick={startExam} disabled={loading} className="btn btn-primary">
+              {loading ? 'Starting Exam...' : 'Start Exam in Full Screen'}
             </button>
           </div>
         </div>
