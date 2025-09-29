@@ -399,9 +399,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
       console.log('Initializing exam attempt for exam ID:', examId);
 
-      // FIXED: Changed from POST to GET
       const response = await fetch(`${API_BASE}/api/student/exams/${examId}/start`, {
-        method: 'GET', // Changed from POST to GET
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -409,19 +408,22 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       });
 
       if (response.ok) {
-        const attemptData = await response.json();
-        console.log('Exam attempt started:', attemptData);
+        const result = await response.json();
+        console.log('Exam attempt started:', result);
         
-        // Store attempt data - note the response structure may be different
+        // Extract attempt data from response - handle different response structures
+        const attemptInfo = result.attempt || result;
+        
         setAttemptData({
-          attemptId: attemptData.attempt?.id || attemptData.attemptId,
-          sessionToken: attemptData.attempt?.token || attemptData.sessionToken
+          attemptId: attemptInfo.id || attemptInfo.attemptId,
+          sessionToken: attemptInfo.token || attemptInfo.sessionToken
         });
         
         return true;
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start exam attempt');
+        const errorText = await response.text();
+        console.error('Start exam error response:', errorText);
+        throw new Error('Failed to start exam attempt');
       }
     } catch (error) {
       console.error('Error starting exam attempt:', error);
@@ -511,7 +513,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       window.location.href = '/dashboard';
     }
   };
-
   const handleSubmit = async (isAutoSubmit = false, violationType = null) => {
     if (!examData) {
       alert('Exam data not available. Cannot submit.');
@@ -543,6 +544,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       console.log('Submitting exam with data:', {
         examId: examId,
         attemptId: attemptData.attemptId,
+        sessionToken: attemptData.sessionToken,
         answersCount: Object.keys(currentAnswers).length,
         isAutoSubmit: isAutoSubmit,
         violationType: violationType
@@ -550,7 +552,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
       const submissionData = {
         attemptId: attemptData.attemptId,
-        sessionToken: attemptData.sessionToken,
+        sessionToken: attemptData.sessionToken, // This might be undefined for old attempts
         answers: Object.entries(currentAnswers).map(([questionId, answer]) => ({
           questionId: parseInt(questionId),
           answer: answer
@@ -581,11 +583,11 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         let message = '';
         
         if (violationType) {
-          message = `Exam submitted due to proctoring violation. Score: ${result.totalMarks}`;
+          message = `Exam submitted due to proctoring violation. Score: ${result.score || result.totalMarks}`;
         } else if (isAutoSubmit) {
-          message = `Time's up! Exam auto-submitted. Score: ${result.totalMarks}`;
+          message = `Time's up! Exam auto-submitted. Score: ${result.score || result.totalMarks}`;
         } else {
-          message = `Exam submitted successfully! Score: ${result.totalMarks}`;
+          message = `Exam submitted successfully! Score: ${result.score || result.totalMarks}`;
         }
         
         alert(message);
@@ -599,9 +601,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         navigateToDashboard();
         
       } else {
-        const errorData = await response.json();
-        console.error('Backend submission error:', errorData);
-        throw new Error(errorData.error || 'Failed to submit exam');
+        const errorText = await response.text();
+        console.error('Backend submission error:', errorText);
+        throw new Error('Failed to submit exam. Please try again.');
       }
     } catch (error) {
       console.error('Error submitting exam:', error);
@@ -611,6 +613,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       setIsSubmitting(false);
     }
   };
+
 
   const handleAutoSubmit = () => {
     console.log('Time is up! Auto-submitting exam...');
