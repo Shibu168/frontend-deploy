@@ -7,7 +7,8 @@ import {
   sendVerificationEmail,
   signInWithGoogle,
   linkEmailPasswordToGoogle,
-  checkEmailExists
+  checkEmailExists,
+  trySignInAndGetUserInfo
 } from '../firebase';
 import './EmailAuth.css';
 
@@ -76,7 +77,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
   };
 
-  // FIXED: Handle registration with better error analysis
+  // FIXED: Enhanced registration handler
   const handleRegistration = async () => {
     if (password !== confirmPassword) {
       setError("Passwords don't match");
@@ -95,7 +96,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       const result = await registerWithEmailPassword(email, password);
       const user = result.user;
       
-      console.log('[DEBUG] Account created, sending verification...');
+      console.log('[DEBUG] Account created successfully');
       await sendVerificationEmail(user);
       onEmailRegistration(user.email, user);
       
@@ -104,35 +105,74 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       console.error('[DEBUG] Registration error:', error);
       console.error('[DEBUG] Error code:', error.code);
       
-      // Handle email already in use - this is the main fix
+      // Handle email already in use
       if (error.code === 'auth/email-already-in-use') {
-        // Check what authentication methods exist for this email
-        try {
-          const methods = await checkEmailExists(email);
-          console.log('[DEBUG] Sign-in methods after error:', methods);
-          
-          if (methods.includes('google.com')) {
-            // Email exists with Google authentication
-            setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-            setError('This email is already registered with Google. Would you like to add a password to your Google account?');
-          } else if (methods.includes('password')) {
-            // Email exists with password authentication
-            setError('An account with this email already exists. Please sign in instead.');
-            setIsLogin(true);
-          } else {
-            // Email exists but with unknown method or empty methods array (Firebase bug)
-            setError('An account with this email already exists. Please try signing in with Google or use a different email.');
-          }
-        } catch (methodsError) {
-          console.error('[DEBUG] Error checking methods:', methodsError);
-          // If we can't check methods, show generic message
-          setError('An account with this email already exists. Please sign in instead.');
-          setIsLogin(true);
-        }
+        await handleExistingEmailScenario();
       } else {
-        // Other errors
         setError(error.message || 'Registration failed. Please try again.');
       }
+    }
+  };
+
+  // NEW: Handle the scenario when email already exists
+  const handleExistingEmailScenario = async () => {
+    console.log('[DEBUG] Handling existing email scenario for:', email);
+    
+    try {
+      // First, try to check sign-in methods
+      const methods = await checkEmailExists(email);
+      console.log('[DEBUG] Sign-in methods:', methods);
+      
+      if (methods.length > 0) {
+        if (methods.includes('google.com')) {
+          setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
+          setError('This email is already registered with Google. Would you like to add a password to your Google account?');
+        } else if (methods.includes('password')) {
+          setError('An account with this email already exists. Please sign in instead.');
+          setIsLogin(true);
+        } else {
+          setError('An account with this email already exists. Please try signing in with a different method.');
+          setIsLogin(true);
+        }
+        return;
+      }
+      
+      // If methods is empty but Firebase says email exists, try to sign in
+      console.log('[DEBUG] Methods empty, trying to sign in to check account...');
+      const signInAttempt = await trySignInAndGetUserInfo(email, password);
+      
+      if (signInAttempt.success) {
+        // Account exists and password is correct
+        console.log('[DEBUG] Account exists and password is correct');
+        const user = signInAttempt.user;
+        
+        if (!user.emailVerified) {
+          await sendVerificationEmail(user);
+          setMessage(`Account exists but email not verified. Verification email sent to ${email}. Please verify your email.`);
+          onEmailRegistration(user.email, user);
+        } else {
+          const idToken = await user.getIdToken();
+          onLoginSuccess(idToken, user);
+        }
+      } else {
+        // Account exists but password might be wrong or it's a different auth method
+        console.log('[DEBUG] Sign in failed:', signInAttempt.error);
+        
+        if (signInAttempt.error.code === 'auth/wrong-password') {
+          setError('An account with this email already exists, but the password is incorrect. Please try signing in or reset your password.');
+          setIsLogin(true);
+        } else if (signInAttempt.error.code === 'auth/invalid-credential') {
+          setError('An account with this email exists but with different authentication. Please try signing in with Google or contact support.');
+          setAccountRecoveryMode('UNKNOWN_AUTH_METHOD');
+        } else {
+          setError('An account with this email already exists. Please try signing in with Google or use a different email.');
+          setAccountRecoveryMode('UNKNOWN_AUTH_METHOD');
+        }
+      }
+    } catch (methodsError) {
+      console.error('[DEBUG] Error in existing email scenario:', methodsError);
+      setError('An account with this email already exists. Please try signing in or use a different email.');
+      setIsLogin(true);
     }
   };
 
@@ -167,6 +207,8 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
         setError('This email is already linked to your Google account. Please sign in with Google.');
       } else if (error.code === 'auth/credential-already-in-use') {
         setError('These credentials are already associated with another account.');
+      } else if (error.code === 'auth/requires-recent-login') {
+        setError('For security, please sign out and sign in with Google again to link your account.');
       } else {
         setError('Failed to link accounts: ' + (error.message || 'Please try again.'));
       }
@@ -175,10 +217,10 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
   };
 
-  // Alternative: Simple sign in with existing credentials
-  const handleSimpleSignIn = async () => {
-    setLoading(true);
+  // Handle sign in
+  const handleSignIn = async () => {
     try {
+      console.log('[DEBUG] Attempting sign in for:', email);
       const result = await signInWithEmailPassword(email, password);
       const user = result.user;
       
@@ -192,15 +234,20 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       onLoginSuccess(idToken, user);
     } catch (signInError) {
       console.error('[DEBUG] Sign in error:', signInError);
-      if (signInError.code === 'auth/wrong-password') {
-        setError('Incorrect password. Please try again or reset your password.');
+      
+      if (signInError.code === 'auth/invalid-credential') {
+        setError('Invalid email or password. Please check your credentials and try again.');
       } else if (signInError.code === 'auth/user-not-found') {
         setError('No account found with this email. Please create a new account.');
+        setIsLogin(false);
+      } else if (signInError.code === 'auth/wrong-password') {
+        setError('Incorrect password. Please try again or reset your password.');
+      } else if (signInError.code === 'auth/too-many-requests') {
+        setError('Too many failed attempts. Please try again later or reset your password.');
       } else {
-        setError('Sign in failed: ' + (signInError.message || 'Please try again.'));
+        setError(signInError.message || 'Sign in failed. Please try again.');
       }
-    } finally {
-      setLoading(false);
+      throw signInError; // Re-throw to be caught by main handler
     }
   };
 
@@ -214,13 +261,13 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
 
     try {
       if (isLogin) {
-        await handleSimpleSignIn();
+        await handleSignIn();
       } else {
         await handleRegistration();
       }
     } catch (error) {
-      console.error('[DEBUG] Unexpected error in handleSubmit:', error);
-      setError('An unexpected error occurred. Please try again.');
+      // Error already handled in sub-functions
+      console.error('[DEBUG] Main handler error:', error);
     } finally {
       setLoading(false);
     }
@@ -237,7 +284,11 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       await sendPasswordReset(email);
       setMessage('Password reset email sent! Check your inbox.');
     } catch (error) {
-      setError(error.message);
+      if (error.code === 'auth/user-not-found') {
+        setError('No account found with this email address.');
+      } else {
+        setError(error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -256,6 +307,14 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     if (passwordStrength <= 50) return '#ffa502';
     if (passwordStrength <= 75) return '#2ed573';
     return '#00ff96';
+  };
+
+  // Handle unknown auth method
+  const handleUnknownAuthRecovery = () => {
+    setAccountRecoveryMode(null);
+    setError('');
+    setEmail('');
+    setIsLogin(true);
   };
 
   return (
@@ -312,16 +371,40 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                 >
                   Use different email
                 </button>
-                <span style={{ margin: '0 10px' }}>or</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Unknown Auth Method Recovery */}
+        {accountRecoveryMode === 'UNKNOWN_AUTH_METHOD' && (
+          <div className="recovery-option">
+            <div className="message-icon">🔍</div>
+            <div>
+              <p>We detected an account issue with this email. Please try:</p>
+              <div style={{ display: 'flex', gap: '10px', flexDirection: 'column', marginTop: '10px' }}>
                 <button 
                   onClick={() => {
                     setAccountRecoveryMode(null);
                     setIsLogin(true);
-                    setError('Please sign in with Google instead.');
+                    setError('Please try signing in with your existing credentials.');
                   }}
+                  className="google-recovery-btn"
+                >
+                  Try Signing In Again
+                </button>
+                <button 
+                  onClick={handlePasswordReset}
+                  className="cancel-link"
+                  disabled={loading}
+                >
+                  Reset Password
+                </button>
+                <button 
+                  onClick={handleUnknownAuthRecovery}
                   className="cancel-link"
                 >
-                  Sign in with Google
+                  Use Different Email
                 </button>
               </div>
             </div>
