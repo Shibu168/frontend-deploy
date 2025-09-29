@@ -39,33 +39,33 @@ const AvailableExams = ({ onExamSelect }) => {
   };
 
   // AvailableExams.js - Simple fix
-const handleExamSelect = async (exam) => {
-  if (exam.visibility === 'public' || exam.visibility === 'shared') {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/student/exams/${exam.id}/start`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  const handleExamSelect = async (exam) => {
+    if (exam.visibility === 'public' || exam.visibility === 'shared') {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE}/api/student/exams/${exam.id}/start`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-      if (response.ok) {
-        const examData = await response.json();
-        // SIMPLE FIX: Pass examData.exam instead of examData
-        onExamSelect(examData.exam);
-      } else {
-        const errorData = await response.json();
-        alert('Failed to start exam: ' + (errorData.error || 'Unknown error'));
+        if (response.ok) {
+          const examData = await response.json();
+          // SIMPLE FIX: Pass examData.exam instead of examData
+          onExamSelect(examData.exam);
+        } else {
+          const errorData = await response.json();
+          alert('Failed to start exam: ' + (errorData.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Error starting exam:', error);
+        alert('Error starting exam. Please try again.');
       }
-    } catch (error) {
-      console.error('Error starting exam:', error);
-      alert('Error starting exam. Please try again.');
+    } else {
+      alert('This is a private exam. Please use the shareable link provided by your teacher.');
     }
-  } else {
-    alert('This is a private exam. Please use the shareable link provided by your teacher.');
-  }
-};
+  };
 
   if (loading) {
     return <div className="loading">Loading available exams...</div>;
