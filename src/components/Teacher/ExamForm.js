@@ -256,6 +256,7 @@ const ExamForm = ({ onExamCreated }) => {
             <small>Only students with emails from this domain will be able to take the exam</small>
           </div>
           
+          {/* FIXED: Radio buttons with proper name attribute */}
           <div className="form-group">
             <label>Visibility *</label>
             <div className="visibility-options">
