@@ -76,7 +76,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     }
   };
 
-  // FIXED: Enhanced registration handler with better error processing
+  // FIXED: Handle registration with better error analysis
   const handleRegistration = async () => {
     if (password !== confirmPassword) {
       setError("Passwords don't match");
@@ -91,26 +91,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
     try {
       console.log('[DEBUG] Starting registration for:', email);
       
-      // First check if email exists and how
-      const methods = await checkEmailExists(email);
-      console.log('[DEBUG] Existing methods:', methods);
-      
-      if (methods.length > 0) {
-        if (methods.includes('google.com') && !methods.includes('password')) {
-          // Email exists with Google but not password
-          setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-          setError('This email is already registered with Google. Would you like to add a password to your account?');
-          return;
-        } else if (methods.includes('password')) {
-          // Email exists with password
-          setError('An account with this email already exists. Please sign in instead.');
-          setIsLogin(true);
-          return;
-        }
-      }
-
-      // If no conflicts, proceed with registration
-      console.log('[DEBUG] No conflicts, creating account...');
+      // Try to register directly
       const result = await registerWithEmailPassword(email, password);
       const user = result.user;
       
@@ -120,35 +101,36 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       
       setMessage(`Verification email sent to ${user.email}! Please check your inbox.`);
     } catch (error) {
-      console.error('[DEBUG] Registration error details:', error);
+      console.error('[DEBUG] Registration error:', error);
       console.error('[DEBUG] Error code:', error.code);
-      console.error('[DEBUG] Error message:', error.message);
       
-      // Handle custom error messages from our enhanced register function
-      if (error.message === 'EMAIL_EXISTS_WITH_GOOGLE') {
-        setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-        setError('This email is already registered with Google. Would you like to add a password to your account?');
-      } else if (error.message === 'EMAIL_ALREADY_IN_USE') {
-        setError('An account with this email already exists. Please sign in instead.');
-        setIsLogin(true);
-      } 
-      // Handle Firebase native errors as fallback
-      else if (error.code === 'auth/email-already-in-use') {
-        // Double check the methods to provide appropriate message
+      // Handle email already in use - this is the main fix
+      if (error.code === 'auth/email-already-in-use') {
+        // Check what authentication methods exist for this email
         try {
           const methods = await checkEmailExists(email);
+          console.log('[DEBUG] Sign-in methods after error:', methods);
+          
           if (methods.includes('google.com')) {
+            // Email exists with Google authentication
             setAccountRecoveryMode('LINK_GOOGLE_ACCOUNT');
-            setError('This email is already registered with Google. Would you like to add a password to your account?');
-          } else {
+            setError('This email is already registered with Google. Would you like to add a password to your Google account?');
+          } else if (methods.includes('password')) {
+            // Email exists with password authentication
             setError('An account with this email already exists. Please sign in instead.');
             setIsLogin(true);
+          } else {
+            // Email exists but with unknown method or empty methods array (Firebase bug)
+            setError('An account with this email already exists. Please try signing in with Google or use a different email.');
           }
         } catch (methodsError) {
+          console.error('[DEBUG] Error checking methods:', methodsError);
+          // If we can't check methods, show generic message
           setError('An account with this email already exists. Please sign in instead.');
           setIsLogin(true);
         }
       } else {
+        // Other errors
         setError(error.message || 'Registration failed. Please try again.');
       }
     }
@@ -181,7 +163,42 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
       setAccountRecoveryMode(null);
     } catch (error) {
       console.error('[DEBUG] Account linking error:', error);
-      setError('Failed to link accounts. Please try again. ' + (error.message || ''));
+      if (error.code === 'auth/provider-already-linked') {
+        setError('This email is already linked to your Google account. Please sign in with Google.');
+      } else if (error.code === 'auth/credential-already-in-use') {
+        setError('These credentials are already associated with another account.');
+      } else {
+        setError('Failed to link accounts: ' + (error.message || 'Please try again.'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Alternative: Simple sign in with existing credentials
+  const handleSimpleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithEmailPassword(email, password);
+      const user = result.user;
+      
+      if (!user.emailVerified) {
+        setError('Please verify your email address before signing in. Check your inbox for the verification email.');
+        setLoading(false);
+        return;
+      }
+      
+      const idToken = await user.getIdToken();
+      onLoginSuccess(idToken, user);
+    } catch (signInError) {
+      console.error('[DEBUG] Sign in error:', signInError);
+      if (signInError.code === 'auth/wrong-password') {
+        setError('Incorrect password. Please try again or reset your password.');
+      } else if (signInError.code === 'auth/user-not-found') {
+        setError('No account found with this email. Please create a new account.');
+      } else {
+        setError('Sign in failed: ' + (signInError.message || 'Please try again.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -197,40 +214,13 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
 
     try {
       if (isLogin) {
-        // Sign in logic
-        console.log('[DEBUG] Attempting sign in for:', email);
-        const result = await signInWithEmailPassword(email, password);
-        const user = result.user;
-        
-        if (!user.emailVerified) {
-          setError('Please verify your email address before signing in. Check your inbox for the verification email.');
-          setLoading(false);
-          return;
-        }
-        
-        const idToken = await user.getIdToken();
-        onLoginSuccess(idToken, user);
+        await handleSimpleSignIn();
       } else {
-        // Registration logic
         await handleRegistration();
       }
     } catch (error) {
-      console.error('[DEBUG] Authentication error:', error);
-      console.error('[DEBUG] Error code:', error.code);
-      
-      if (error.code === 'auth/wrong-password') {
-        setError('Incorrect password. Please try again or reset your password.');
-      } else if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email. Please create a new account.');
-        setIsLogin(false);
-      } else if (error.code === 'auth/invalid-credential') {
-        setError('Invalid email or password. Please try again.');
-      } else if (error.code === 'auth/too-many-requests') {
-        setError('Too many failed attempts. Please try again later or reset your password.');
-      } else {
-        // For any other errors, show the message
-        setError(error.message || 'Authentication failed. Please try again.');
-      }
+      console.error('[DEBUG] Unexpected error in handleSubmit:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -300,7 +290,7 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
           <div className="recovery-option">
             <div className="message-icon">🔄</div>
             <div>
-              <p>Link your Google account with email/password:</p>
+              <p>This email is registered with Google. You can:</p>
               <button 
                 onClick={handleAccountLinking}
                 className="google-recovery-btn"
@@ -309,18 +299,31 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                 <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
                   <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
                 </svg>
-                {loading ? 'Linking...' : 'Link with Google'}
+                {loading ? 'Linking...' : 'Link Password to Google Account'}
               </button>
-              <button 
-                onClick={() => {
-                  setAccountRecoveryMode(null);
-                  setError('');
-                  setEmail('');
-                }}
-                className="cancel-link"
-              >
-                Use different email
-              </button>
+              <div style={{ marginTop: '10px', fontSize: '14px' }}>
+                <button 
+                  onClick={() => {
+                    setAccountRecoveryMode(null);
+                    setError('');
+                    setEmail('');
+                  }}
+                  className="cancel-link"
+                >
+                  Use different email
+                </button>
+                <span style={{ margin: '0 10px' }}>or</span>
+                <button 
+                  onClick={() => {
+                    setAccountRecoveryMode(null);
+                    setIsLogin(true);
+                    setError('Please sign in with Google instead.');
+                  }}
+                  className="cancel-link"
+                >
+                  Sign in with Google
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -342,119 +345,117 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
           </div>
         )}
         
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="emailauth-form">
-          <div className="form-group">
-            <label>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" strokeWidth="2"/>
-                <path d="M22 6L12 13L2 6" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Enter your enterprise email"
-              className="secure-input"
-              disabled={accountRecoveryMode === 'LINK_GOOGLE_ACCOUNT'}
-            />
-          </div>
-          
-          <div className="form-group">
-            <label>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
-                <circle cx="12" cy="16" r="1" fill="currentColor"/>
-                <path d="M7 11V7A5 5 0 0 1 17 7V11" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              Password
-            </label>
-            <div className="password-input-container">
+        {/* Form - Only show if not in recovery mode */}
+        {!accountRecoveryMode && (
+          <form onSubmit={handleSubmit} className="emailauth-form">
+            <div className="form-group">
+              <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M22 6L12 13L2 6" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                Email Address
+              </label>
               <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="Enter secure password"
+                placeholder="Enter your enterprise email"
                 className="secure-input"
-                minLength="6"
-                disabled={accountRecoveryMode === 'LINK_GOOGLE_ACCOUNT'}
               />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? '👁️' : '🙈'}
-              </button>
             </div>
-            {!isLogin && password && (
-              <div className="password-strength">
-                <div className="strength-bar">
-                  <div 
-                    className="strength-fill"
-                    style={{ 
-                      width: `${passwordStrength}%`,
-                      backgroundColor: getPasswordStrengthColor()
-                    }}
-                  ></div>
-                </div>
-                <span style={{ color: getPasswordStrengthColor() }}>
-                  {getPasswordStrengthText()}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {!isLogin && !accountRecoveryMode && (
+            
             <div className="form-group">
               <label>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
                   <circle cx="12" cy="16" r="1" fill="currentColor"/>
                   <path d="M7 11V7A5 5 0 0 1 17 7V11" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M9 16L11 18L15 14" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
                 </svg>
-                Confirm Password
+                Password
               </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="Confirm your password"
-                className="secure-input"
-                minLength="6"
-              />
+              <div className="password-input-container">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Enter secure password"
+                  className="secure-input"
+                  minLength="6"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? '👁️' : '🙈'}
+                </button>
+              </div>
+              {!isLogin && password && (
+                <div className="password-strength">
+                  <div className="strength-bar">
+                    <div 
+                      className="strength-fill"
+                      style={{ 
+                        width: `${passwordStrength}%`,
+                        backgroundColor: getPasswordStrengthColor()
+                      }}
+                    ></div>
+                  </div>
+                  <span style={{ color: getPasswordStrengthColor() }}>
+                    {getPasswordStrengthText()}
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-          
-          {/* Messages */}
-          {error && (
-            <div className="error-message">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                <path d="M15 9L9 15M9 9L15 15" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              {error}
-            </div>
-          )}
-          
-          {message && (
-            <div className="success-message">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M22 11.08V12A10 10 0 1 1 5.93 7.01" stroke="currentColor" strokeWidth="2"/>
-                <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              {message}
-            </div>
-          )}
-          
-          {/* Submit Button */}
-          {!accountRecoveryMode && (
+            
+            {!isLogin && (
+              <div className="form-group">
+                <label>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="11" width="18" height="10" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                    <path d="M7 11V7A5 5 0 0 1 17 7V11" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M9 16L11 18L15 14" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
+                  </svg>
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Confirm your password"
+                  className="secure-input"
+                  minLength="6"
+                />
+              </div>
+            )}
+            
+            {/* Messages */}
+            {error && (
+              <div className="error-message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M15 9L9 15M9 9L15 15" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                {error}
+              </div>
+            )}
+            
+            {message && (
+              <div className="success-message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M22 11.08V12A10 10 0 1 1 5.93 7.01" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                {message}
+              </div>
+            )}
+            
+            {/* Submit Button */}
             <button 
               type="submit" 
               disabled={loading}
@@ -476,8 +477,8 @@ const EmailAuth = ({ onLoginSuccess, onEmailRegistration, switchToGoogle, onInco
                 </>
               )}
             </button>
-          )}
-        </form>
+          </form>
+        )}
         
         {/* Auth Options */}
         {!accountRecoveryMode && (
