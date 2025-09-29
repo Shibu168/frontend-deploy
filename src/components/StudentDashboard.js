@@ -67,7 +67,7 @@ const StudentDashboard = ({ user, onLogout }) => {
   const handleExamSelect = (examData) => {
     console.log('Exam selected in dashboard:', examData);
     
-    if (examData && examData.exam && examData.questions) {
+    if (examData && examData.id && Array.isArray(examData.questions)) {
       setSelectedExam(examData);
     } else {
       console.error('Invalid exam data structure:', examData);
