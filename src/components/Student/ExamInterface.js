@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import './ExamInterface.css';
-
 
 const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);

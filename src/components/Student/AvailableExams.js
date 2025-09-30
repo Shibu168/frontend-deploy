@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './AvailableExams.css';
 
 const AvailableExams = ({ onExamSelect, onNotification }) => {
   const [exams, setExams] = useState({ public: [], shared: [] });

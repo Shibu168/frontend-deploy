@@ -1,6 +1,5 @@
 // SecureBrowserWrapper.js
 import React, { useState, useEffect, useRef } from 'react';
-import './Secure.css';
 
 const SecureBrowserWrapper = ({ children, examData, onNotification }) => {
   const [securityStatus, setSecurityStatus] = useState({

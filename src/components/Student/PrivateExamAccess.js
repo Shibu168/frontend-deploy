@@ -2,8 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getValidToken, isTokenValid, clearAuthData } from '../../utils/authHelpers';
-import './PrivateExamAccess.css';
-
 
 const PrivateExamAccess = ({ user, onLogin, onNotification }) => {
   const { token } = useParams();
