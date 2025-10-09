@@ -70,15 +70,15 @@ const AdminLogin = ({ onAdminLogin }) => {
       
       // Handle different error types
       if (error.code === 'auth/invalid-credential') {
-        setError('Invalid email or password.');
+        console.log('Invalid email or password.');
       } else if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email.');
+        console.log('No account found with this email.');
       } else if (error.code === 'auth/wrong-password') {
-        setError('Incorrect password.');
+        console.log('Incorrect password.');
       } else if (error.response?.data?.message) {
-        setError(error.response.data.message);
+        console.log(error.response.data.message);
       } else {
-        setError('Login failed. Please try again.');
+        console.log('Login failed. Please try again.');
       }
     } finally {
       setLoading(false);
