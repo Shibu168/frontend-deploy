@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase'; // Your Firebase config
+import { app } from '../firebase'; // Your Firebase config
 import api from '../utils/axiosConfig';
 import './Auth.css';
 
