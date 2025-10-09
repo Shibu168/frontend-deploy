@@ -73,14 +73,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
   }, [examId]);
 
   // Update URL when activeTab or selectedExam changes
-  // Update URL when activeTab or selectedExam changes - FIXED VERSION
   useEffect(() => {
-    // Don't update URL when we're on the create tab
-    if (activeTab === 'create') {
-      navigate('/teacher-dashboard/create', { replace: true });
-      return;
-    }
-    
     if (selectedExam) {
       switch (activeTab) {
         case 'edit':

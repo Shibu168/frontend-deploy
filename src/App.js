@@ -591,8 +591,7 @@ function AppContent() {
           ) : <Navigate to="/login" />
         } 
       />
-      // Add this route in your main App component where you define routes
-      <Route path="/teacher-dashboard/create" element={<TeacherDashboard />} />
+
       {/* NEW: Teacher Questions Management Route */}
       <Route 
         path="/teacher-dashboard/exams/:examId/questions" 
