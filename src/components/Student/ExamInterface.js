@@ -16,8 +16,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFullScreenModal, setShowFullScreenModal] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [isRequestingFullScreen, setIsRequestingFullScreen] = useState(false);
-  const [isInitialFullScreenRequest, setIsInitialFullScreenRequest] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(false);
   const proctoringRef = useRef({
     tabSwitchCount: 0,
     lastSwitchTime: null,
@@ -148,30 +147,32 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   }, [exam, examFromState, examData]);
 
-  // Enhanced Full Screen Detection and Enforcement
+  // SIMPLIFIED Full Screen Detection - This is the key fix
   useEffect(() => {
     const checkFullScreenStatus = () => {
-      return !!(document.fullscreenElement || 
-                document.webkitFullscreenElement || 
-                document.mozFullScreenElement || 
-                document.msFullscreenElement);
+      return !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
     };
 
     const handleFullScreenChange = () => {
       const newFullScreenStatus = checkFullScreenStatus();
-      console.log('Full screen change detected:', newFullScreenStatus);
+      console.log('Full screen change:', newFullScreenStatus, 'Exam started:', examStarted, 'Initializing:', isInitializing);
       
       setIsFullScreen(newFullScreenStatus);
       
-      if (examStarted) {
-        // Only enforce fullscreen and pause if exam is already running
-        // and user explicitly exits fullscreen after it was active
-        if (!newFullScreenStatus && !isInitialFullScreenRequest) {
+      // Only enforce fullscreen rules after exam has started AND we're not in initialization phase
+      if (examStarted && !isInitializing) {
+        if (!newFullScreenStatus) {
+          // User exited full screen - pause exam
           setIsPaused(true);
           setShowFullScreenModal(true);
           console.log('Exam paused due to full screen exit');
-        } else if (newFullScreenStatus) {
-          // Fullscreen entered - resume exam
+        } else {
+          // User entered full screen - resume exam
           setIsPaused(false);
           setShowFullScreenModal(false);
           console.log('Exam resumed - full screen active');
@@ -190,38 +191,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
     };
-  }, [examStarted, isInitialFullScreenRequest]);
+  }, [examStarted, isInitializing]);
 
-  // Add a useEffect to handle the initial fullscreen transition
-  useEffect(() => {
-    if (examStarted) {
-      // Check if we're already in fullscreen (user might have allowed it immediately)
-      const currentFullScreen = !!(document.fullscreenElement || 
-                                  document.webkitFullscreenElement || 
-                                  document.mozFullScreenElement || 
-                                  document.msFullscreenElement);
-      setIsFullScreen(currentFullScreen);
-      
-      if (!currentFullScreen) {
-        // If not in fullscreen, give a brief grace period before enforcing
-        const gracePeriod = setTimeout(() => {
-          const stillNotFullScreen = !!(document.fullscreenElement || 
-                                       document.webkitFullscreenElement || 
-                                       document.mozFullScreenElement || 
-                                       document.msFullscreenElement);
-          if (stillNotFullScreen && examStarted) {
-            setIsInitialFullScreenRequest(false);
-          }
-        }, 3000); // 3 second grace period
-        
-        return () => clearTimeout(gracePeriod);
-      } else {
-        setIsInitialFullScreenRequest(false);
-      }
-    }
-  }, [examStarted]);
-
-  // Enhanced Proctoring: Tab switch detection and full screen enforcement
+  // Enhanced Proctoring: Tab switch detection
   useEffect(() => {
     if (!examStarted) return;
 
@@ -331,45 +303,35 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     };
   }, [examStarted, examData, isPaused]);
 
-  // Request full screen function
-  const requestFullScreen = () => {
+  // SIMPLIFIED Request full screen function - This is the key fix
+  const requestFullScreen = async () => {
     const element = document.documentElement;
     
-    // Set a flag that we're attempting fullscreen to avoid immediate pausing
-    setIsRequestingFullScreen(true);
-    
-    const fullscreenPromise = element.requestFullscreen?.() ||
-                             element.mozRequestFullScreen?.() || 
-                             element.webkitRequestFullscreen?.() ||
-                             element.msRequestFullscreen?.();
-
-    if (fullscreenPromise) {
-      fullscreenPromise
-        .then(() => {
-          console.log('Full screen entered successfully');
-          setIsFullScreen(true);
-          setIsPaused(false);
-          setShowFullScreenModal(false);
-          setIsInitialFullScreenRequest(false);
-        })
-        .catch(err => {
-          console.log('Full screen request failed or was denied:', err);
-          // Only pause if exam is already running and fullscreen was working before
-          if (examStarted && isFullScreen) {
-            setIsPaused(true);
-            setShowFullScreenModal(true);
-          }
-        })
-        .finally(() => {
-          setIsRequestingFullScreen(false);
-        });
-    } else {
-      console.log('Full screen not supported by browser');
-      setIsRequestingFullScreen(false);
-      if (examStarted) {
-        setIsPaused(true);
-        setShowFullScreenModal(true);
+    try {
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
       }
+      
+      console.log('Full screen entered successfully');
+      setIsFullScreen(true);
+      
+      // End initialization phase after successful fullscreen
+      setTimeout(() => {
+        setIsInitializing(false);
+      }, 1000);
+      
+    } catch (err) {
+      console.log('Full screen request failed:', err);
+      // If full screen fails, still end initialization but show modal
+      setIsInitializing(false);
+      setIsPaused(true);
+      setShowFullScreenModal(true);
     }
   };
 
@@ -417,7 +379,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     return examData.exam?.id || examData.id;
   };
 
-  // NEW: Function to create or get attempt data
+  // Function to create or get attempt data
   const initializeExamAttempt = async () => {
     if (!examData) {
       alert('Exam data is not available. Please try again.');
@@ -468,6 +430,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   };
 
+  // SIMPLIFIED Start Exam function - This is the key fix
   const startExam = async () => {
     if (!examData || getQuestions().length === 0) {
       alert('Exam data is not available. Please try again.');
@@ -475,6 +438,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
 
     setLoading(true);
+    setIsInitializing(true); // Start initialization phase
     
     try {
       // Initialize exam attempt if not already present
@@ -482,6 +446,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         const attemptInitialized = await initializeExamAttempt();
         if (!attemptInitialized) {
           setLoading(false);
+          setIsInitializing(false);
           return;
         }
       }
@@ -494,17 +459,18 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         isMonitoring: true
       };
       
+      // Start the exam but don't enforce fullscreen rules immediately
       setExamStarted(true);
-      setIsInitialFullScreenRequest(true);
       
-      // Attempt to enter full screen with a delay to allow UI to update
+      // Request full screen but don't pause if it takes time
       setTimeout(() => {
         requestFullScreen();
-      }, 100);
+      }, 500);
       
     } catch (error) {
       console.error('Error starting exam:', error);
       alert('Failed to start exam: ' + error.message);
+      setIsInitializing(false);
     } finally {
       setLoading(false);
     }
@@ -949,8 +915,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
-      {/* Full Screen Reminder Footer */}
-      {!isFullScreen && examStarted && !isRequestingFullScreen && !isInitialFullScreenRequest && (
+      {/* Full Screen Reminder Footer - Only show after initialization */}
+      {!isFullScreen && examStarted && !isInitializing && (
         <div className="full-screen-reminder">
           <div className="reminder-content">
             <p>⚠️ <strong>Full Screen Required:</strong> Please return to full screen mode to continue your exam.</p>
