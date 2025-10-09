@@ -1,4 +1,3 @@
-// firebase.js
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -25,7 +24,8 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// ✅ ADD THIS: Export the app instance
+export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 const provider = new GoogleAuthProvider();
@@ -34,7 +34,7 @@ export const signInWithGoogle = () => {
   return signInWithPopup(auth, provider);
 };
 
-// Direct registration - let Firebase handle the email check
+// ... rest of your existing exports remain the same
 export const registerWithEmailPassword = async (email, password) => {
   return await createUserWithEmailAndPassword(auth, email, password);
 };
@@ -59,7 +59,6 @@ export const applyEmailVerification = (oobCode) => {
   return applyActionCode(auth, oobCode);
 };
 
-// Link email/password to existing Google account
 export const linkEmailPasswordToGoogle = async (email, password) => {
   const user = auth.currentUser;
   if (!user) {
@@ -70,18 +69,15 @@ export const linkEmailPasswordToGoogle = async (email, password) => {
   return await linkWithCredential(user, credential);
 };
 
-// Check email sign-in methods with better error handling
 export const checkEmailExists = async (email) => {
   try {
     return await fetchSignInMethodsForEmail(auth, email);
   } catch (error) {
     console.log('[DEBUG] Error checking email methods:', error);
-    // If there's an error checking methods, return empty array
     return [];
   }
 };
 
-// Try to sign in and get user info to determine account type
 export const trySignInAndGetUserInfo = async (email, password) => {
   try {
     const result = await signInWithEmailPassword(email, password);
