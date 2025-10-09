@@ -1,8 +1,6 @@
 // frontend/src/components/AdminLogin.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { app } from '../config/firebase'; // Your Firebase config
 import api from '../utils/axiosConfig';
 import './Auth.css';
 
@@ -14,7 +12,6 @@ const AdminLogin = ({ onAdminLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const auth = getAuth(app);
 
   const handleChange = (e) => {
     setFormData({
@@ -28,58 +25,34 @@ const AdminLogin = ({ onAdminLogin }) => {
     setLoading(true);
     setError('');
 
+    // DEBUG: Check what's being sent
+    console.log('Submitting email:', formData.email);
+    console.log('Email type:', typeof formData.email);
+    console.log('Email value (stringified):', JSON.stringify(formData.email));
+
     try {
-      // 1. Sign in with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(
-        auth, 
-        formData.email, 
-        formData.password
-      );
-      
-      const user = userCredential.user;
-      console.log('[DEBUG] Firebase user:', user);
-      
-      // 2. Get Firebase ID token
-      const idToken = await user.getIdToken();
-      console.log('[DEBUG] Firebase ID token obtained');
-      
-      // 3. Send token to your backend to verify admin role
-      const response = await api.post('/api/admin/verify', {}, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+      const response = await api.post('/api/admin/login', {
+        email: formData.email,
+        password: formData.password
       });
 
-      const adminUser = response.data.user;
-      console.log('[DEBUG] Admin user verified:', adminUser);
+      const { token, user } = response.data;
       
       // Store token and user data
-      localStorage.setItem('adminToken', idToken); // Store Firebase token
-      localStorage.setItem('adminUser', JSON.stringify(adminUser));
+      localStorage.setItem('adminToken', token);
+      localStorage.setItem('adminUser', JSON.stringify(user));
       
       // Call the parent callback if provided
       if (onAdminLogin) {
-        onAdminLogin(adminUser, idToken);
+        onAdminLogin(user, token);
       }
       
       // Navigate to admin dashboard
-      navigate('/admin-dashboard', { state: { user: adminUser } });
+      navigate('/admin-dashboard', { state: { user } });
       
     } catch (error) {
       console.error('Login error:', error);
-      
-      // Handle different error types
-      if (error.code === 'auth/invalid-credential') {
-        setError('Invalid email or password.');
-      } else if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email.');
-      } else if (error.code === 'auth/wrong-password') {
-        setError('Incorrect password.');
-      } else if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else {
-        setError('Login failed. Please try again.');
-      }
+      setError(error.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -103,15 +76,18 @@ const AdminLogin = ({ onAdminLogin }) => {
             />
           </div>
           <div className="form-group">
-            <label>Password</label>
+            <label>Password (Firebase UID)</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               required
-              placeholder="Enter your password"
+              placeholder="Enter your Firebase UID"
             />
+            <small className="help-text">
+              Use your Firebase UID as password
+            </small>
           </div>
           <button type="submit" disabled={loading}>
             {loading ? 'Logging in...' : 'Login as Admin'}
