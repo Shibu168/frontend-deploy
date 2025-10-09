@@ -1,412 +1,374 @@
-import React, { useState, useEffect } from 'react';
-import './ExamList.css';
+import React, { useState } from 'react';
 
-const ExamList = ({ onExamSelect, onEditExam, onViewResults }) => {
-  const [exams, setExams] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [copiedToken, setCopiedToken] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(null);
+const ExamForm = ({ onExamCreated }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    start_time: '',
+    end_time: '',
+    duration_minutes: 60,
+    domain_restriction: '',
+    visibility: 'public',
+    shared_emails: []
+  });
+  const [loading, setLoading] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [createdExam, setCreatedExam] = useState(null);
+  const [sharedEmailInput, setSharedEmailInput] = useState('');
 
-  useEffect(() => {
-    fetchExams();
-  }, []);
+  // Function to convert local datetime to UTC (fix for server expecting UTC)
+  const convertToUTC = (localDateTimeString) => {
+    if (!localDateTimeString) return '';
+    
+    // Create date object from local time
+    const localDate = new Date(localDateTimeString);
+    
+    // Convert to UTC - the server expects UTC
+    return localDate.toISOString();
+  };
 
-  const fetchExams = async () => {
+  // Function to display UTC time in IST for debugging
+  const displayUTCinIST = (utcTimeString) => {
+    if (!utcTimeString) return '';
+    const date = new Date(utcTimeString);
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleAddEmail = () => {
+    if (sharedEmailInput && !formData.shared_emails.includes(sharedEmailInput)) {
+      setFormData({
+        ...formData,
+        shared_emails: [...formData.shared_emails, sharedEmailInput]
+      });
+      setSharedEmailInput('');
+    }
+  };
+
+  const handleRemoveEmail = (emailToRemove) => {
+    setFormData({
+      ...formData,
+      shared_emails: formData.shared_emails.filter(email => email !== emailToRemove)
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      
+      // Convert local times to UTC before sending
+      const payload = {
+        ...formData,
+        start_time: convertToUTC(formData.start_time),
+        end_time: convertToUTC(formData.end_time)
+      };
+
+      console.log('Debug - Time conversion:', {
+        localStart: formData.start_time,
+        utcStart: payload.start_time,
+        localEnd: formData.end_time,
+        utcEnd: payload.end_time
       });
 
+      const response = await fetch(`${API_BASE}/api/teacher/exams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
       if (response.ok) {
-        const data = await response.json();
-        setExams(data);
+        const exam = await response.json();
+        setCreatedExam(exam);
+        
+        console.log('Exam created:', exam);
+        
+        // Show generated link if exam is private
+        if (formData.visibility === 'private' && exam.shareable_token) {
+          const fullLink = `${window.location.origin}/exam/${exam.shareable_token}`;
+          setGeneratedLink(fullLink);
+        } else {
+          alert('Exam created successfully!');
+          onExamCreated(exam);
+          
+          // Reset form for public exams
+          setFormData({
+            title: '',
+            description: '',
+            start_time: '',
+            end_time: '',
+            duration_minutes: 60,
+            domain_restriction: '',
+            visibility: 'public',
+            shared_emails: []
+          });
+        }
       } else {
-        console.error('Failed to fetch exams');
+        const errorData = await response.json();
+        alert('Failed to create exam: ' + (errorData.error || response.statusText));
       }
     } catch (error) {
-      console.error('Error fetching exams:', error);
+      console.error('Error creating exam:', error);
+      alert('Error creating exam. Please check console for details.');
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteExam = async (examId) => {
-    if (!window.confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
-      return;
-    }
-
-    setDeleteLoading(examId);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${examId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        setExams(exams.filter(exam => exam.id !== examId));
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Failed to delete exam');
-      }
-    } catch (error) {
-      console.error('Error deleting exam:', error);
-      alert('Error deleting exam. Please try again.');
-    } finally {
-      setDeleteLoading(null);
-    }
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(generatedLink);
+    alert('Exam link copied to clipboard!');
   };
 
-  const copyExamLink = (exam) => {
-    if (exam.visibility === 'private' && exam.shareable_token) {
-      const examLink = `${window.location.origin}/exam/${exam.shareable_token}`;
-      navigator.clipboard.writeText(examLink).then(() => {
-        setCopiedToken(exam.id);
-        setTimeout(() => setCopiedToken(null), 3000);
-      }).catch(err => {
-        console.error('Failed to copy: ', err);
-      });
-    }
-  };
-
-  const copyToken = (exam) => {
-    if (exam.shareable_token) {
-      navigator.clipboard.writeText(exam.shareable_token).then(() => {
-        setCopiedToken(exam.id);
-        setTimeout(() => setCopiedToken(null), 3000);
-      }).catch(err => {
-        console.error('Failed to copy: ', err);
-      });
-    }
-  };
-
-  const getExamLink = (exam) => {
-    if (exam.visibility === 'private' && exam.shareable_token) {
-      return `${window.location.origin}/exam/${exam.shareable_token}`;
-    }
-    return null;
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Not set';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  const createNewExam = () => {
+    setGeneratedLink('');
+    setCreatedExam(null);
+    setFormData({
+      title: '',
+      description: '',
+      start_time: '',
+      end_time: '',
+      duration_minutes: 60,
+      domain_restriction: '',
+      visibility: 'public',
+      shared_emails: []
     });
+    setSharedEmailInput('');
   };
 
-  const getTimeRemaining = (endTime) => {
-    if (!endTime) return null;
-    const now = new Date();
-    const end = new Date(endTime);
-    const diff = end - now;
-    
-    if (diff <= 0) return 'Expired';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
-    if (days > 0) return `${days}d ${hours}h left`;
-    if (hours > 0) return `${hours}h left`;
-    
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${minutes}m left`;
-  };
-
-  const getStatusBadgeVariant = (status) => {
-    switch (status) {
-      case 'published': return 'success';
-      case 'draft': return 'warning';
-      case 'archived': return 'secondary';
-      default: return 'default';
+  const viewExamDetails = () => {
+    if (createdExam) {
+      onExamCreated(createdExam);
     }
   };
-
-  const getVisibilityBadgeVariant = (visibility) => {
-    switch (visibility) {
-      case 'public': return 'primary';
-      case 'private': return 'info';
-      case 'shared': return 'success';
-      default: return 'default';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="exam-list-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading your exams...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="teacher-exam-list">
-      <div className="exam-list-header">
-        <h2>My Exams</h2>
-        <div className="exam-stats">
-          <span className="stat-item">
-            <strong>{exams.length}</strong> total
-          </span>
-          <span className="stat-item">
-            <strong>{exams.filter(e => e.status === 'published').length}</strong> published
-          </span>
-          <span className="stat-item">
-            <strong>{exams.filter(e => e.status === 'draft').length}</strong> draft
-          </span>
-        </div>
+    <div className="exam-form">
+      <h2>Create New Exam</h2>
+      
+      {/* Timezone Info Banner */}
+      <div className="timezone-info" style={{
+        backgroundColor: '#e3f2fd',
+        padding: '10px',
+        borderRadius: '5px',
+        marginBottom: '20px',
+        border: '1px solid #90caf9'
+      }}>
+        <strong>⏰ Timezone Information:</strong> 
+        <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>
+          Times should be entered in your <strong>local time</strong>. 
+          They will be automatically converted to UTC for the server.
+        </p>
+        {formData.start_time && (
+          <div style={{ margin: '5px 0 0 0', fontSize: '12px' }}>
+            <p><strong>Your local time:</strong> {new Date(formData.start_time).toLocaleString()}</p>
+            <p><strong>Server will receive (UTC):</strong> {convertToUTC(formData.start_time)}</p>
+            <p><strong>This equals (IST):</strong> {displayUTCinIST(convertToUTC(formData.start_time))} IST</p>
+          </div>
+        )}
       </div>
-
-      {exams.length === 0 ? (
-        <div className="no-exams">
-          <div className="no-exams-icon">📝</div>
-          <h3>No exams created yet</h3>
-          <p>Create your first exam to get started with managing assessments</p>
-        </div>
-      ) : (
-        <div className="exams-grid">
-          {exams.map(exam => (
-            <div key={exam.id} className="exam-card">
-              <div className="exam-card-header">
-                <div className="exam-title-section">
-                  <h3 className="exam-title">{exam.title}</h3>
-                  <div className="exam-badges">
-                    <span className={`status-badge ${getStatusBadgeVariant(exam.status)}`}>
-                      {exam.status}
-                    </span>
-                    <span className={`visibility-badge ${getVisibilityBadgeVariant(exam.visibility)}`}>
-                      {exam.visibility}
-                    </span>
-                  </div>
-                </div>
-                <div className="exam-actions-dropdown">
-                  <button className="dropdown-toggle">⋯</button>
-                  <div className="dropdown-menu">
-                    <button 
-                      onClick={() => onEditExam && onEditExam(exam)}
-                      className="dropdown-item"
-                    >
-                      <span className="icon">✏️</span>
-                      Edit Exam
-                    </button>
-                    <button 
-                      onClick={() => onExamSelect && onExamSelect(exam)}
-                      className="dropdown-item"
-                    >
-                      <span className="icon">❓</span>
-                      Manage Questions
-                    </button>
-                    {exam.status === 'published' && (
-                      <button 
-                        onClick={() => onViewResults && onViewResults(exam)}
-                        className="dropdown-item"
-                      >
-                        <span className="icon">📊</span>
-                        View Results
-                      </button>
-                    )}
-                    <div className="dropdown-divider"></div>
-                    <button 
-                      onClick={() => deleteExam(exam.id)}
-                      disabled={deleteLoading === exam.id}
-                      className="dropdown-item delete"
-                    >
-                      <span className="icon">
-                        {deleteLoading === exam.id ? '⏳' : '🗑️'}
-                      </span>
-                      {deleteLoading === exam.id ? 'Deleting...' : 'Delete Exam'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              {exam.description && (
-                <p className="exam-description">{exam.description}</p>
-              )}
-              
-              <div className="exam-meta-grid">
-                <div className="meta-item">
-                  <span className="meta-icon">⏱️</span>
-                  <div className="meta-content">
-                    <span className="meta-label">Duration</span>
-                    <span className="meta-value">{exam.duration} minutes</span>
-                  </div>
-                </div>
-                
-                <div className="meta-item">
-                  <span className="meta-icon">📅</span>
-                  <div className="meta-content">
-                    <span className="meta-label">Starts</span>
-                    <span className="meta-value">{formatDate(exam.start_time)}</span>
-                  </div>
-                </div>
-                
-                <div className="meta-item">
-                  <span className="meta-icon">⏰</span>
-                  <div className="meta-content">
-                    <span className="meta-label">Ends</span>
-                    <span className="meta-value">{formatDate(exam.end_time)}</span>
-                  </div>
-                </div>
-                
-                <div className="meta-item">
-                  <span className="meta-icon">❓</span>
-                  <div className="meta-content">
-                    <span className="meta-label">Questions</span>
-                    <span className="meta-value">
-                      {exam.questions ? exam.questions.length : 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {exam.end_time && (
-                <div className="time-remaining">
-                  <span className={`time-badge ${getTimeRemaining(exam.end_time) === 'Expired' ? 'expired' : ''}`}>
-                    {getTimeRemaining(exam.end_time)}
-                  </span>
-                </div>
-              )}
-
-              {exam.visibility === 'private' && exam.shareable_token && (
-                <div className="shareable-link-section">
-                  <div className="link-header">
-                    <strong>Private Exam Link</strong>
-                    <div className="link-actions">
-                      <button 
-                        onClick={() => copyExamLink(exam)}
-                        className={`copy-btn ${copiedToken === exam.id ? 'copied' : ''}`}
-                      >
-                        {copiedToken === exam.id ? '✓ Copied' : 'Copy Link'}
-                      </button>
-                      <button 
-                        onClick={() => copyToken(exam)}
-                        className="copy-token-btn"
-                        title="Copy token only"
-                      >
-                        Copy Token
-                      </button>
-                    </div>
-                  </div>
-                  <div className="link-preview">
-                    <code>{getExamLink(exam)}</code>
-                  </div>
-                </div>
-              )}
-
-              {exam.visibility === 'shared' && exam.shared_emails && (
-                <div className="shared-emails-section">
-                  <div className="shared-header">
-                    <strong>Shared with {exam.shared_emails.length} student(s)</strong>
-                  </div>
-                  <div className="email-list-preview">
-                    {exam.shared_emails.slice(0, 3).map((email, index) => (
-                      <span key={index} className="email-tag">{email}</span>
-                    ))}
-                    {exam.shared_emails.length > 3 && (
-                      <span className="email-more">+{exam.shared_emails.length - 3} more</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Direct Links Section */}
-              <div className="exam-direct-links">
-                <div className="direct-link-group">
-                  <span>Quick Access:</span>
-                  <div className="direct-links-row">
-                    <a 
-                      href={`/teacher-dashboard/exams/${exam.id}/edit`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onEditExam && onEditExam(exam);
-                      }}
-                      className="direct-link"
-                    >
-                      ✏️ Edit Exam
-                    </a>
-                    <a 
-                      href={`/teacher-dashboard/exams/${exam.id}/questions`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onExamSelect && onExamSelect(exam);
-                      }}
-                      className="direct-link"
-                    >
-                      ❓ Manage Questions
-                    </a>
-                    {exam.status === 'published' && (
-                      <a 
-                        href={`/teacher-dashboard/exams/${exam.id}/results`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          onViewResults && onViewResults(exam);
-                        }}
-                        className="direct-link"
-                      >
-                        📊 View Results
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="exam-card-actions">
-                <button 
-                  onClick={() => onEditExam && onEditExam(exam)}
-                  className="btn-primary"
-                >
-                  <span className="btn-icon">✏️</span>
-                  Edit Exam
-                </button>
-                
-                <button 
-                  onClick={() => onExamSelect && onExamSelect(exam)}
-                  className="btn-secondary"
-                >
-                  <span className="btn-icon">❓</span>
-                  Questions
-                </button>
-                
-                {exam.status === 'published' && (
-                  <button 
-                    onClick={() => onViewResults && onViewResults(exam)}
-                    className="btn-success"
-                  >
-                    <span className="btn-icon">📊</span>
-                    Results
-                  </button>
-                )}
-                
-                {exam.status === 'draft' && (
-                  <button 
-                    onClick={() => deleteExam(exam.id)}
-                    disabled={deleteLoading === exam.id}
-                    className="btn-danger"
-                  >
-                    <span className="btn-icon">
-                      {deleteLoading === exam.id ? '⏳' : '🗑️'}
-                    </span>
-                    {deleteLoading === exam.id ? 'Deleting...' : 'Delete'}
-                  </button>
-                )}
-              </div>
+      
+      {!generatedLink ? (
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Exam Title *</label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows="3"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Start Time (Your Local Time) *</label>
+            <input
+              type="datetime-local"
+              name="start_time"
+              value={formData.start_time}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>End Time (Your Local Time) *</label>
+            <input
+              type="datetime-local"
+              name="end_time"
+              value={formData.end_time}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Duration (minutes) *</label>
+            <input
+              type="number"
+              name="duration_minutes"
+              value={formData.duration_minutes}
+              onChange={handleChange}
+              min="1"
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Domain Restriction (optional)</label>
+            <input
+              type="text"
+              name="domain_restriction"
+              value={formData.domain_restriction}
+              onChange={handleChange}
+              placeholder="example.com"
+            />
+            <small>Only students with emails from this domain will be able to take the exam</small>
+          </div>
+          
+          {/* FIXED: Radio buttons with proper name attribute */}
+          <div className="form-group">
+            <label>Visibility *</label>
+            <div className="visibility-options">
+              <label>
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="public"
+                  checked={formData.visibility === 'public'}
+                  onChange={handleChange}
+                />
+                Public (Visible in student dashboard)
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="private"
+                  checked={formData.visibility === 'private'}
+                  onChange={handleChange}
+                />
+                Private (Access by link only)
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="shared"
+                  checked={formData.visibility === 'shared'}
+                  onChange={handleChange}
+                />
+                Shared (Specific students by email)
+              </label>
             </div>
-          ))}
+          </div>
+
+          {formData.visibility === 'shared' && (
+            <div className="form-group">
+              <label>Share with Students (Emails) *</label>
+              <div className="email-input-container">
+                <input
+                  type="email"
+                  value={sharedEmailInput}
+                  onChange={(e) => setSharedEmailInput(e.target.value)}
+                  placeholder="Enter student email"
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddEmail())}
+                />
+                <button type="button" onClick={handleAddEmail}>Add</button>
+              </div>
+              <div className="email-list">
+                {formData.shared_emails.map((email, index) => (
+                  <div key={index} className="email-tag">
+                    {email}
+                    <button type="button" onClick={() => handleRemoveEmail(email)}>×</button>
+                  </div>
+                ))}
+              </div>
+              {formData.shared_emails.length === 0 && (
+                <p className="warning">Please add at least one student email</p>
+              )}
+            </div>
+          )}
+          
+          <div className="form-actions">
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              disabled={loading || (formData.visibility === 'shared' && formData.shared_emails.length === 0)}
+            >
+              {loading ? 'Creating...' : 'Create Exam'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="exam-link-generated">
+          <div className="success-message">
+            <h3>✅ Private Exam Created Successfully!</h3>
+            <p>Share this unique link with your students:</p>
+            
+            <div className="link-container">
+              <input 
+                type="text" 
+                value={generatedLink} 
+                readOnly 
+                className="generated-link-input"
+              />
+              <button onClick={copyToClipboard} className="copy-btn">
+                Copy Link
+              </button>
+            </div>
+            
+            <div className="exam-info">
+              <h4>Exam Details:</h4>
+              <p><strong>Title:</strong> {createdExam?.title}</p>
+              <p><strong>Duration:</strong> {createdExam?.duration_minutes} minutes</p>
+              <p><strong>Starts (IST):</strong> {displayUTCinIST(createdExam?.start_time)}</p>
+              <p><strong>Ends (IST):</strong> {displayUTCinIST(createdExam?.end_time)}</p>
+            </div>
+            
+            <div className="link-actions">
+              <button onClick={createNewExam} className="btn btn-secondary">
+                Create Another Exam
+              </button>
+              <button onClick={viewExamDetails} className="btn btn-primary">
+                View Exam Details
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-export default ExamList;
+export default ExamForm;

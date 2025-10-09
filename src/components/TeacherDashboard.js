@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 import ExamList from './Teacher/ExamList';
 import ExamForm from './Teacher/ExamForm';
 import QuestionForm from './Teacher/QuestionForm';
 import ResultsView from './Teacher/ResultsView';
-import ExamEditForm from './Teacher/ExamEditForm';
+import ExamEditForm from './Teacher/ExamEditForm'; // New component for editing exams
 import './TeacherDashboard.css';
 
-const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
-  const { examId } = useParams();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(initialActiveTab);
+const TeacherDashboard = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('exams');
   const [selectedExam, setSelectedExam] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const navigate = useNavigate();
 
   // Load theme preference on mount
   useEffect(() => {
@@ -26,76 +25,6 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
       document.documentElement.classList.add('dark-theme');
     }
   }, []);
-
-  // Load selected exam from URL if examId is present
-  useEffect(() => {
-    if (examId) {
-      fetchExamById(examId);
-    }
-  }, [examId]);
-
-  // Update URL when activeTab or selectedExam changes
-  useEffect(() => {
-    if (selectedExam) {
-      switch (activeTab) {
-        case 'edit':
-          navigate(`/teacher-dashboard/exams/${selectedExam.id}/edit`, { replace: true });
-          break;
-        case 'results':
-          navigate(`/teacher-dashboard/exams/${selectedExam.id}/results`, { replace: true });
-          break;
-        case 'questions':
-          navigate(`/teacher-dashboard/exams/${selectedExam.id}/questions`, { replace: true });
-          break;
-        default:
-          navigate('/teacher-dashboard', { replace: true });
-      }
-    } else {
-      navigate('/teacher-dashboard', { replace: true });
-    }
-  }, [activeTab, selectedExam, navigate]);
-
-  const fetchExamById = async (id) => {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const examData = await response.json();
-        setSelectedExam(examData);
-      } else {
-        console.error('Failed to fetch exam');
-        navigate('/teacher-dashboard');
-      }
-    } catch (error) {
-      console.error('Error fetching exam:', error);
-      navigate('/teacher-dashboard');
-    }
-  };
-
-  const handleEditExam = (exam) => {
-    setSelectedExam(exam);
-    setActiveTab('edit');
-  };
-
-  const handleViewResults = (exam) => {
-    setSelectedExam(exam);
-    setActiveTab('results');
-  };
-
-  const handleManageQuestions = (exam) => {
-    setSelectedExam(exam);
-    setActiveTab('questions');
-  };
-
-  const handleExamUpdated = (updatedExam) => {
-    setSelectedExam(updatedExam);
-  };
 
   // Theme toggle function
   const toggleTheme = () => {
@@ -130,6 +59,10 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
   const handleCancelLogout = () => {
     setShowLogoutConfirm(false);
   };
+
+  useEffect(() => {
+    console.log("Selected exam changed:", selectedExam);
+  }, [selectedExam]);
 
   // Get user display name
   const getUserDisplayName = () => {
@@ -568,10 +501,7 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             ...styles.navButton,
             ...(activeTab === 'exams' ? styles.navButtonActive : {})
           }}
-          onClick={() => {
-            setActiveTab('exams');
-            setSelectedExam(null);
-          }}
+          onClick={() => setActiveTab('exams')}
           onMouseEnter={(e) => {
             if (activeTab !== 'exams') {
               Object.assign(e.target.style, styles.navButtonHover);
@@ -585,7 +515,6 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
         >
           <span style={{ position: 'relative', zIndex: 1 }}>My Exams</span>
         </button>
-        
         <button 
           style={{
             ...styles.navButton,
@@ -605,7 +534,6 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
         >
           <span style={{ position: 'relative', zIndex: 1 }}>Create Exam</span>
         </button>
-        
         {selectedExam && (
           <>
             <button 
@@ -627,7 +555,6 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             >
               <span style={{ position: 'relative', zIndex: 1 }}>Edit Exam</span>
             </button>
-            
             <button 
               style={{
                 ...styles.navButton,
@@ -647,7 +574,6 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
             >
               <span style={{ position: 'relative', zIndex: 1 }}>Manage Questions</span>
             </button>
-            
             <button 
               style={{
                 ...styles.navButton,
@@ -675,9 +601,10 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
         {activeTab === 'exams' && (
           <ExamList 
             onSelectExam={setSelectedExam}
-            onExamSelect={handleManageQuestions}
-            onEditExam={handleEditExam}
-            onViewResults={handleViewResults}
+            onExamSelect={(exam) => {
+              setSelectedExam(exam);
+              setActiveTab('edit');
+            }}
           />
         )}
         
@@ -693,11 +620,11 @@ const TeacherDashboard = ({ user, onLogout, initialActiveTab = 'exams' }) => {
         {activeTab === 'edit' && selectedExam && (
           <ExamEditForm 
             exam={selectedExam}
-            onExamUpdated={handleExamUpdated}
-            onBack={() => {
-              setActiveTab('exams');
-              setSelectedExam(null);
+            onExamUpdated={(updatedExam) => {
+              setSelectedExam(updatedExam);
+              // Optionally show success message or refresh data
             }}
+            onBack={() => setActiveTab('exams')}
           />
         )}
         
