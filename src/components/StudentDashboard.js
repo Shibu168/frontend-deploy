@@ -16,44 +16,6 @@ const StudentDashboard = ({ user, onLogout }) => {
   const [securityStatus, setSecurityStatus] = useState('secure');
   const [systemStatus, setSystemStatus] = useState('online');
   const [proctorStatus, setProctorStatus] = useState('active');
-  const [notifications, setNotifications] = useState([]);
-
-  // Notification system
-  const showNotification = (message, type = 'info') => {
-    const id = Date.now() + Math.random();
-    const notification = {
-      id,
-      message,
-      type,
-      timestamp: new Date()
-    };
-    
-    setNotifications(prev => [...prev, notification]);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      removeNotification(id);
-    }, 5000);
-  };
-
-  const removeNotification = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  // Enhanced error handling
-  const handleApiError = (error, context = 'Operation') => {
-    console.error(`${context}:`, error);
-    const errorMessage = error.message || `Failed to ${context.toLowerCase()}`;
-    showNotification(`${context} failed: ${errorMessage}`, 'error');
-  };
-
-  const handleSuccess = (message) => {
-    showNotification(message, 'success');
-  };
-
-  const handleInfo = (message) => {
-    showNotification(message, 'info');
-  };
 
   // Security status animation
   useEffect(() => {
@@ -87,23 +49,18 @@ const StudentDashboard = ({ user, onLogout }) => {
     if (location.state && location.state.privateExam) {
       setSelectedExam(location.state.privateExam);
       window.history.replaceState({}, document.title);
-      handleInfo('Private exam loaded successfully');
     }
   }, [location.state, navigate]);
 
   const handleLogout = async () => {
     try {
-      showNotification('Logging out...', 'info');
       await signOut(auth);
-      handleSuccess('Logged out successfully');
-      setTimeout(() => {
-        if (onLogout) {
-          onLogout();
-        }
-        navigate('/');
-      }, 1000);
+      if (onLogout) {
+        onLogout();
+      }
+      navigate('/');
     } catch (error) {
-      handleApiError(error, 'Logout');
+      console.error('Error logging out:', error);
     }
   };
 
@@ -112,39 +69,19 @@ const StudentDashboard = ({ user, onLogout }) => {
     
     if (examData && examData.id && Array.isArray(examData.questions)) {
       setSelectedExam(examData);
-      handleInfo(`Starting exam: ${examData.title}`);
     } else {
       console.error('Invalid exam data structure:', examData);
-      handleApiError(new Error('Invalid exam data structure'), 'Loading exam');
+      alert('Error loading exam. Please try again.');
     }
   };
 
   const handleExamComplete = () => {
     setSelectedExam(null);
     setActiveView('results');
-    handleSuccess('Exam completed successfully! Viewing results...');
   };
 
   const handleBackToDashboard = () => {
     setSelectedExam(null);
-    handleInfo('Returned to dashboard');
-  };
-
-  const handleViewChange = (view) => {
-    setActiveView(view);
-    switch(view) {
-      case 'exams':
-        handleInfo('Viewing available exams');
-        break;
-      case 'results':
-        handleInfo('Viewing exam results');
-        break;
-      case 'analytics':
-        handleInfo('Viewing performance analytics');
-        break;
-      default:
-        break;
-    }
   };
 
   // Get user display name or email
@@ -164,26 +101,12 @@ const StudentDashboard = ({ user, onLogout }) => {
         exam={selectedExam}
         onExamComplete={handleExamComplete}
         onBack={handleBackToDashboard}
-        onNotification={showNotification}
       />
     );
   }
 
   return (
     <div className="student-dashboard">
-      {/* Notification Container */}
-      <div className="notification-container">
-        {notifications.map(notification => (
-          <div
-            key={notification.id}
-            className={`notification notification-${notification.type}`}
-            onClick={() => removeNotification(notification.id)}
-          >
-            {notification.message}
-          </div>
-        ))}
-      </div>
-      
       {/* Security Status Bar */}
       <div className="security-bar">
         <div className="security-indicators">
@@ -266,7 +189,7 @@ const StudentDashboard = ({ user, onLogout }) => {
         <div className="nav-container">
           <button 
             className={`nav-btn ${activeView === 'exams' ? 'active' : ''}`}
-            onClick={() => handleViewChange('exams')}
+            onClick={() => setActiveView('exams')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth="2"/>
@@ -281,7 +204,7 @@ const StudentDashboard = ({ user, onLogout }) => {
           
           <button 
             className={`nav-btn ${activeView === 'results' ? 'active' : ''}`}
-            onClick={() => handleViewChange('results')}
+            onClick={() => setActiveView('results')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M3 3V21L12 17L21 21V3H3Z" stroke="currentColor" strokeWidth="2"/>
@@ -293,7 +216,7 @@ const StudentDashboard = ({ user, onLogout }) => {
           
           <button 
             className={`nav-btn ${activeView === 'analytics' ? 'active' : ''}`}
-            onClick={() => handleViewChange('analytics')}
+            onClick={() => setActiveView('analytics')}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path d="M3 3V21H21" stroke="currentColor" strokeWidth="2"/>
@@ -318,7 +241,7 @@ const StudentDashboard = ({ user, onLogout }) => {
                 <h2>Available Examinations</h2>
                 <p>Select an examination to begin your secure testing session</p>
               </div>
-              <AvailableExams onExamSelect={handleExamSelect} onNotification={showNotification} />
+              <AvailableExams onExamSelect={handleExamSelect} />
             </div>
           )}
           
@@ -328,7 +251,7 @@ const StudentDashboard = ({ user, onLogout }) => {
                 <h2>Examination Results</h2>
                 <p>Review your performance and detailed analytics</p>
               </div>
-              <Results onNotification={showNotification} />
+              <Results />
             </div>
           )}
           
@@ -368,83 +291,6 @@ const StudentDashboard = ({ user, onLogout }) => {
           </div>
         </div>
       </footer>
-
-      {/* Add CSS for notifications */}
-      <style>
-        {`
-          .notification-container {
-            position: fixed;
-            top: 100px;
-            right: 20px;
-            z-index: 2000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-width: 400px;
-          }
-
-          .notification {
-            padding: 15px 20px;
-            border-radius: 12px;
-            backdrop-filter: blur(20px);
-            border: 2px solid rgba(14, 165, 233, 0.2);
-            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.15), 0 0 0 1px rgba(14, 165, 233, 0.1) inset;
-            color: #0f172a;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            animation: notificationSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            max-width: 350px;
-            word-wrap: break-word;
-            cursor: pointer;
-          }
-
-          .notification-success {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: rgba(16, 185, 129, 0.3);
-          }
-
-          .notification-error {
-            background: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.3);
-          }
-
-          .notification-info {
-            background: rgba(59, 130, 246, 0.1);
-            border-color: rgba(59, 130, 246, 0.3);
-          }
-
-          @keyframes notificationSlide {
-            from { opacity: 0; transform: translateX(100%); }
-            to { opacity: 1; transform: translateX(0); }
-          }
-
-          /* Dark theme support */
-          @media (prefers-color-scheme: dark) {
-            .notification {
-              background: rgba(15, 23, 42, 0.95);
-              border: 2px solid rgba(0, 255, 150, 0.2);
-              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 255, 150, 0.1) inset;
-              color: #f8fafc;
-            }
-
-            .notification-success {
-              background: rgba(16, 185, 129, 0.15);
-              border-color: rgba(16, 185, 129, 0.4);
-            }
-
-            .notification-error {
-              background: rgba(239, 68, 68, 0.15);
-              border-color: rgba(239, 68, 68, 0.4);
-            }
-
-            .notification-info {
-              background: rgba(59, 130, 246, 0.15);
-              border-color: rgba(59, 130, 246, 0.4);
-            }
-          }
-        `}
-      </style>
     </div>
   );
 };
