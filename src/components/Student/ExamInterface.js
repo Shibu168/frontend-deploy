@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import './ExamInterface.css';
 
 
-const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
+const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const timerRef = useRef(null);
@@ -164,17 +164,11 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
           setIsPaused(true);
           setShowFullScreenModal(true);
           console.log('Exam paused due to full screen exit');
-          if (onNotification) {
-            onNotification('Exam paused: Full screen mode required', 'warning');
-          }
         } else {
           // User entered full screen - resume exam
           setIsPaused(false);
           setShowFullScreenModal(false);
           console.log('Exam resumed - full screen active');
-          if (onNotification) {
-            onNotification('Exam resumed: Full screen mode active', 'success');
-          }
         }
       }
     };
@@ -190,7 +184,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
     };
-  }, [examStarted, onNotification]);
+  }, [examStarted]);
 
   // Enhanced Proctoring: Tab switch detection and full screen enforcement
   useEffect(() => {
@@ -205,10 +199,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
         proctoringRef.current.lastSwitchTime = new Date();
         
         console.log(`Tab switch detected! Count: ${newCount}/${MAX_TAB_SWITCHES}`);
-        
-        if (onNotification) {
-          onNotification(`Tab switch detected! (${newCount}/${MAX_TAB_SWITCHES})`, 'warning');
-        }
         
         if (newCount <= MAX_TAB_SWITCHES) {
           setShowWarningModal(true);
@@ -237,10 +227,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
         setTabSwitchCount(newCount);
         setShowWarningModal(true);
         
-        if (onNotification) {
-          onNotification('Developer tools access detected!', 'warning');
-        }
-        
         if (newCount > MAX_TAB_SWITCHES) {
           handleProctoringViolation('developer_tools_attempt');
         }
@@ -253,10 +239,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       const newCount = tabSwitchCount + 1;
       setTabSwitchCount(newCount);
       setShowWarningModal(true);
-      
-      if (onNotification) {
-        onNotification('Right-click disabled during exam', 'warning');
-      }
       
       if (newCount > MAX_TAB_SWITCHES) {
         handleProctoringViolation('right_click_attempt');
@@ -281,7 +263,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [examStarted, tabSwitchCount, isFullScreen, onNotification]);
+  }, [examStarted, tabSwitchCount, isFullScreen]);
 
   // Enhanced Timer with Pause/Resume functionality
   useEffect(() => {
@@ -329,45 +311,30 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
         // If full screen fails, show modal and pause exam
         setIsPaused(true);
         setShowFullScreenModal(true);
-        if (onNotification) {
-          onNotification('Full screen request failed. Exam paused.', 'error');
-        }
       });
     } else if (element.mozRequestFullScreen) {
       element.mozRequestFullScreen().catch(err => {
         console.log('Full screen request failed:', err);
         setIsPaused(true);
         setShowFullScreenModal(true);
-        if (onNotification) {
-          onNotification('Full screen request failed. Exam paused.', 'error');
-        }
       });
     } else if (element.webkitRequestFullscreen) {
       element.webkitRequestFullscreen().catch(err => {
         console.log('Full screen request failed:', err);
         setIsPaused(true);
         setShowFullScreenModal(true);
-        if (onNotification) {
-          onNotification('Full screen request failed. Exam paused.', 'error');
-        }
       });
     } else if (element.msRequestFullscreen) {
       element.msRequestFullscreen().catch(err => {
         console.log('Full screen request failed:', err);
         setIsPaused(true);
         setShowFullScreenModal(true);
-        if (onNotification) {
-          onNotification('Full screen request failed. Exam paused.', 'error');
-        }
       });
     } else {
       // Full screen not supported
       console.log('Full screen not supported by browser');
       setIsPaused(true);
       setShowFullScreenModal(true);
-      if (onNotification) {
-        onNotification('Full screen not supported by your browser', 'warning');
-      }
     }
   };
 
@@ -386,11 +353,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       'right_click_attempt': 'Right-click attempt detected. Your exam will be submitted.'
     };
     
-    const message = `Proctoring Violation!\n${violationMessages[violationType]}\n\nTab switches: ${tabSwitchCount}/${MAX_TAB_SWITCHES}`;
-    
-    if (onNotification) {
-      onNotification(`Proctoring violation: ${violationType.replace(/_/g, ' ')}`, 'error');
-    }
+    alert(`Proctoring Violation!\n${violationMessages[violationType]}\n\nTab switches: ${tabSwitchCount}/${MAX_TAB_SWITCHES}`);
     
     // Submit exam with violation flag
     handleSubmit(true, violationType);
@@ -423,9 +386,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
 // In the initializeExamAttempt function, change from POST to GET
   const initializeExamAttempt = async () => {
     if (!examData) {
-      if (onNotification) {
-        onNotification('Exam data is not available. Please try again.', 'error');
-      }
+      alert('Exam data is not available. Please try again.');
       return false;
     }
 
@@ -460,10 +421,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
           sessionToken: attemptInfo.token || attemptInfo.sessionToken
         });
         
-        if (onNotification) {
-          onNotification('Exam attempt initialized successfully', 'success');
-        }
-        
         return true;
       } else {
         const errorText = await response.text();
@@ -472,18 +429,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       }
     } catch (error) {
       console.error('Error starting exam attempt:', error);
-      if (onNotification) {
-        onNotification('Failed to start exam: ' + error.message, 'error');
-      }
+      alert('Failed to start exam: ' + error.message);
       return false;
     }
   };
 
   const startExam = async () => {
     if (!examData || getQuestions().length === 0) {
-      if (onNotification) {
-        onNotification('Exam data is not available. Please try again.', 'error');
-      }
+      alert('Exam data is not available. Please try again.');
       return;
     }
 
@@ -509,19 +462,13 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       
       setExamStarted(true);
       
-      if (onNotification) {
-        onNotification('Exam started! Full screen mode activated.', 'success');
-      }
-      
       // Attempt to enter full screen
       setTimeout(() => {
         requestFullScreen();
       }, 500);
     } catch (error) {
       console.error('Error starting exam:', error);
-      if (onNotification) {
-        onNotification('Failed to start exam: ' + error.message, 'error');
-      }
+      alert('Failed to start exam: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -570,9 +517,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
   };
   const handleSubmit = async (isAutoSubmit = false, violationType = null) => {
     if (!examData) {
-      if (onNotification) {
-        onNotification('Exam data not available. Cannot submit.', 'error');
-      }
+      alert('Exam data not available. Cannot submit.');
       return;
     }
 
@@ -647,9 +592,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
           message = `Exam submitted successfully! Score: ${result.score || result.totalMarks}`;
         }
         
-        if (onNotification) {
-          onNotification(message, 'success');
-        }
+        alert(message);
         
         // Call the parent callback if provided
         if (onExamComplete) {
@@ -666,9 +609,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
       }
     } catch (error) {
       console.error('Error submitting exam:', error);
-      if (onNotification) {
-        onNotification('Error submitting exam: ' + error.message, 'error');
-      }
+      alert('Error submitting exam: ' + error.message);
     } finally {
       setLoading(false);
       setIsSubmitting(false);
@@ -690,10 +631,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
     
     console.log(`Auto-submitting: ${answeredQuestions}/${totalQuestions} questions answered`);
     
-    if (onNotification) {
-      onNotification('Time is up! Auto-submitting exam...', 'warning');
-    }
-    
     // Always submit, even if no answers were selected
     handleSubmit(true);
   };
@@ -707,9 +644,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack, onNotification }) => {
 
   const closeWarningModal = () => {
     setShowWarningModal(false);
-    if (onNotification) {
-      onNotification('Proctoring warning acknowledged', 'info');
-    }
   };
 
   const questions = getQuestions();

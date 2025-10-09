@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './AvailableExams.css';
 
-const AvailableExams = ({ onExamSelect, onNotification }) => {
+const AvailableExams = ({ onExamSelect }) => {
   const [exams, setExams] = useState({ public: [], shared: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,35 +28,21 @@ const AvailableExams = ({ onExamSelect, onNotification }) => {
       if (response.ok) {
         const data = await response.json();
         setExams(data);
-        if (onNotification) {
-          onNotification(`Loaded ${data.public.length + data.shared.length} available exams`, 'success');
-        }
       } else {
-        const errorMsg = 'Failed to load exams';
-        setError(errorMsg);
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
+        setError('Failed to load exams');
       }
     } catch (error) {
-      const errorMsg = 'Error loading exams';
-      setError(errorMsg);
-      if (onNotification) {
-        onNotification(errorMsg, 'error');
-      }
+      setError('Error loading exams');
       console.error('Error:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  // AvailableExams.js - Simple fix
   const handleExamSelect = async (exam) => {
     if (exam.visibility === 'public' || exam.visibility === 'shared') {
       try {
-        if (onNotification) {
-          onNotification(`Starting exam: ${exam.title}`, 'info');
-        }
-
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_BASE}/api/student/exams/${exam.id}/start`, {
           headers: {
@@ -68,37 +54,17 @@ const AvailableExams = ({ onExamSelect, onNotification }) => {
         if (response.ok) {
           const examData = await response.json();
           // SIMPLE FIX: Pass examData.exam instead of examData
-          if (onNotification) {
-            onNotification(`Exam "${exam.title}" started successfully`, 'success');
-          }
           onExamSelect(examData.exam);
         } else {
           const errorData = await response.json();
-          const errorMsg = 'Failed to start exam: ' + (errorData.error || 'Unknown error');
-          if (onNotification) {
-            onNotification(errorMsg, 'error');
-          }
+          alert('Failed to start exam: ' + (errorData.error || 'Unknown error'));
         }
       } catch (error) {
-        const errorMsg = 'Error starting exam. Please try again.';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
         console.error('Error starting exam:', error);
+        alert('Error starting exam. Please try again.');
       }
     } else {
-      const errorMsg = 'This is a private exam. Please use the shareable link provided by your teacher.';
-      if (onNotification) {
-        onNotification(errorMsg, 'warning');
-      }
-    }
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    const tabName = tab === 'public' ? 'Public Exams' : 'Shared Exams';
-    if (onNotification) {
-      onNotification(`Viewing ${tabName}`, 'info');
+      alert('This is a private exam. Please use the shareable link provided by your teacher.');
     }
   };
 
@@ -127,13 +93,13 @@ const AvailableExams = ({ onExamSelect, onNotification }) => {
           <div className="exams-tabs">
             <button 
               className={`tab-button ${activeTab === 'public' ? 'active' : ''}`}
-              onClick={() => handleTabChange('public')}
+              onClick={() => setActiveTab('public')}
             >
               Public Exams ({exams.public.length})
             </button>
             <button 
               className={`tab-button ${activeTab === 'shared' ? 'active' : ''}`}
-              onClick={() => handleTabChange('shared')}
+              onClick={() => setActiveTab('shared')}
             >
               Shared with Me ({exams.shared.length})
             </button>

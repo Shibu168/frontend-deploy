@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './ExamList.css';
 
-const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) => {
+const ExamList = ({ onExamSelect, onEditExam, onViewResults }) => {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedToken, setCopiedToken] = useState(null);
@@ -24,42 +24,22 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
       if (response.ok) {
         const data = await response.json();
         setExams(data);
-        if (onNotification) {
-          onNotification(`Loaded ${data.length} exams`, 'success');
-        }
       } else {
-        const errorMsg = 'Failed to fetch exams';
-        console.error(errorMsg);
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
+        console.error('Failed to fetch exams');
       }
     } catch (error) {
-      const errorMsg = 'Error fetching exams';
-      console.error(errorMsg, error);
-      if (onNotification) {
-        onNotification(errorMsg, 'error');
-      }
+      console.error('Error fetching exams:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const deleteExam = async (examId) => {
-    const examToDelete = exams.find(exam => exam.id === examId);
-    
-    if (!window.confirm(`Are you sure you want to delete "${examToDelete?.title}"? This action cannot be undone.`)) {
-      if (onNotification) {
-        onNotification('Deletion cancelled', 'info');
-      }
+    if (!window.confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
       return;
     }
 
     setDeleteLoading(examId);
-    if (onNotification) {
-      onNotification(`Deleting exam: ${examToDelete?.title}`, 'info');
-    }
-    
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${examId}`, {
@@ -71,22 +51,13 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
       
       if (response.ok) {
         setExams(exams.filter(exam => exam.id !== examId));
-        if (onNotification) {
-          onNotification(`Exam "${examToDelete?.title}" deleted successfully`, 'success');
-        }
       } else {
         const errorData = await response.json();
-        const errorMsg = errorData.error || 'Failed to delete exam';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
+        alert(errorData.error || 'Failed to delete exam');
       }
     } catch (error) {
-      const errorMsg = 'Error deleting exam. Please try again.';
-      console.error(errorMsg, error);
-      if (onNotification) {
-        onNotification(errorMsg, 'error');
-      }
+      console.error('Error deleting exam:', error);
+      alert('Error deleting exam. Please try again.');
     } finally {
       setDeleteLoading(null);
     }
@@ -97,15 +68,9 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
       const examLink = `${window.location.origin}/exam/${exam.shareable_token}`;
       navigator.clipboard.writeText(examLink).then(() => {
         setCopiedToken(exam.id);
-        if (onNotification) {
-          onNotification('Exam link copied to clipboard!', 'success');
-        }
         setTimeout(() => setCopiedToken(null), 3000);
       }).catch(err => {
         console.error('Failed to copy: ', err);
-        if (onNotification) {
-          onNotification('Failed to copy exam link', 'error');
-        }
       });
     }
   };
@@ -114,15 +79,9 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
     if (exam.shareable_token) {
       navigator.clipboard.writeText(exam.shareable_token).then(() => {
         setCopiedToken(exam.id);
-        if (onNotification) {
-          onNotification('Token copied to clipboard!', 'success');
-        }
         setTimeout(() => setCopiedToken(null), 3000);
       }).catch(err => {
         console.error('Failed to copy: ', err);
-        if (onNotification) {
-          onNotification('Failed to copy token', 'error');
-        }
       });
     }
   };
@@ -182,35 +141,6 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
     }
   };
 
-  const handleEditExam = (exam) => {
-    if (onNotification) {
-      onNotification(`Editing exam: ${exam.title}`, 'info');
-    }
-    onEditExam && onEditExam(exam);
-  };
-
-  const handleManageQuestions = (exam) => {
-    if (onNotification) {
-      onNotification(`Managing questions for: ${exam.title}`, 'info');
-    }
-    onExamSelect && onExamSelect(exam);
-  };
-
-  const handleViewResults = (exam) => {
-    if (onNotification) {
-      onNotification(`Viewing results for: ${exam.title}`, 'info');
-    }
-    onViewResults && onViewResults(exam);
-  };
-
-  const handleRefresh = () => {
-    if (onNotification) {
-      onNotification('Refreshing exams...', 'info');
-    }
-    setLoading(true);
-    fetchExams();
-  };
-
   if (loading) {
     return (
       <div className="exam-list-loading">
@@ -223,12 +153,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
   return (
     <div className="teacher-exam-list">
       <div className="exam-list-header">
-        <div className="header-content">
-          <h2>My Exams</h2>
-          <button onClick={handleRefresh} className="refresh-btn" title="Refresh exams">
-            🔄
-          </button>
-        </div>
+        <h2>My Exams</h2>
         <div className="exam-stats">
           <span className="stat-item">
             <strong>{exams.length}</strong> total
@@ -247,9 +172,6 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
           <div className="no-exams-icon">📝</div>
           <h3>No exams created yet</h3>
           <p>Create your first exam to get started with managing assessments</p>
-          <button onClick={handleRefresh} className="refresh-btn">
-            Refresh
-          </button>
         </div>
       ) : (
         <div className="exams-grid">
@@ -271,14 +193,14 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                   <button className="dropdown-toggle">⋯</button>
                   <div className="dropdown-menu">
                     <button 
-                      onClick={() => handleEditExam(exam)}
+                      onClick={() => onEditExam && onEditExam(exam)}
                       className="dropdown-item"
                     >
                       <span className="icon">✏️</span>
                       Edit Exam
                     </button>
                     <button 
-                      onClick={() => handleManageQuestions(exam)}
+                      onClick={() => onExamSelect && onExamSelect(exam)}
                       className="dropdown-item"
                     >
                       <span className="icon">❓</span>
@@ -286,7 +208,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                     </button>
                     {exam.status === 'published' && (
                       <button 
-                        onClick={() => handleViewResults(exam)}
+                        onClick={() => onViewResults && onViewResults(exam)}
                         className="dropdown-item"
                       >
                         <span className="icon">📊</span>
@@ -407,7 +329,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                       href={`/teacher-dashboard/exams/${exam.id}/edit`}
                       onClick={(e) => {
                         e.preventDefault();
-                        handleEditExam(exam);
+                        onEditExam && onEditExam(exam);
                       }}
                       className="direct-link"
                     >
@@ -417,7 +339,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                       href={`/teacher-dashboard/exams/${exam.id}/questions`}
                       onClick={(e) => {
                         e.preventDefault();
-                        handleManageQuestions(exam);
+                        onExamSelect && onExamSelect(exam);
                       }}
                       className="direct-link"
                     >
@@ -428,7 +350,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                         href={`/teacher-dashboard/exams/${exam.id}/results`}
                         onClick={(e) => {
                           e.preventDefault();
-                          handleViewResults(exam);
+                          onViewResults && onViewResults(exam);
                         }}
                         className="direct-link"
                       >
@@ -441,7 +363,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
               
               <div className="exam-card-actions">
                 <button 
-                  onClick={() => handleEditExam(exam)}
+                  onClick={() => onEditExam && onEditExam(exam)}
                   className="btn-primary"
                 >
                   <span className="btn-icon">✏️</span>
@@ -449,7 +371,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                 </button>
                 
                 <button 
-                  onClick={() => handleManageQuestions(exam)}
+                  onClick={() => onExamSelect && onExamSelect(exam)}
                   className="btn-secondary"
                 >
                   <span className="btn-icon">❓</span>
@@ -458,7 +380,7 @@ const ExamList = ({ onExamSelect, onEditExam, onViewResults, onNotification }) =
                 
                 {exam.status === 'published' && (
                   <button 
-                    onClick={() => handleViewResults(exam)}
+                    onClick={() => onViewResults && onViewResults(exam)}
                     className="btn-success"
                   >
                     <span className="btn-icon">📊</span>

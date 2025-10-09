@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const ResultsView = ({ exam, onBack, onNotification }) => {
+const ResultsView = ({ exam, onBack }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,24 +18,12 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
       setError(null);
       
       if (!API_BASE) {
-        const errorMsg = 'Backend URL not configured';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
-        throw new Error(errorMsg);
+        throw new Error('Backend URL not configured');
       }
 
       const token = localStorage.getItem('token');
       if (!token) {
-        const errorMsg = 'No authentication token found';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
-        throw new Error(errorMsg);
-      }
-
-      if (onNotification) {
-        onNotification('Loading results...', 'info');
+        throw new Error('No authentication token found');
       }
 
       const response = await fetch(`${API_BASE}/api/teacher/exams/${exam.id}/results`, {
@@ -48,14 +36,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
       if (response.ok) {
         const data = await response.json();
         setResults(data);
-        if (onNotification) {
-          onNotification(`Loaded ${data.length} student results`, 'success');
-        }
       } else if (response.status === 401) {
-        const errorMsg = 'Authentication failed. Redirecting to login...';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
         localStorage.removeItem('token');
         window.location.href = '/login';
         return;
@@ -65,11 +46,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
       }
     } catch (error) {
       console.error('Error fetching results:', error);
-      const errorMsg = error.message || 'Network error: Unable to fetch results';
-      setError(errorMsg);
-      if (onNotification) {
-        onNotification(errorMsg, 'error');
-      }
+      setError(error.message || 'Network error: Unable to fetch results');
       setResults([]);
     } finally {
       setLoading(false);
@@ -79,15 +56,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
   const handleDownload = async () => {
     try {
       if (!API_BASE) {
-        const errorMsg = 'Backend URL not configured';
-        if (onNotification) {
-          onNotification(errorMsg, 'error');
-        }
-        throw new Error(errorMsg);
-      }
-
-      if (onNotification) {
-        onNotification('Downloading results...', 'info');
+        throw new Error('Backend URL not configured');
       }
 
       const token = localStorage.getItem('token');
@@ -107,35 +76,14 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        if (onNotification) {
-          onNotification('Results downloaded successfully', 'success');
-        }
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to download results' }));
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
     } catch (error) {
       console.error('Error downloading results:', error);
-      if (onNotification) {
-        onNotification(`Error downloading results: ${error.message}`, 'error');
-      }
+      alert(`Error downloading results: ${error.message}`);
     }
-  };
-
-  const handleRetry = () => {
-    if (onNotification) {
-      onNotification('Retrying to fetch results...', 'info');
-    }
-    setLoading(true);
-    setError(null);
-    fetchResults();
-  };
-
-  const handleBack = () => {
-    if (onNotification) {
-      onNotification('Returning to exam list', 'info');
-    }
-    onBack();
   };
 
   if (loading) {
@@ -143,7 +91,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
       <div className="results-view">
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <h2>Results for {exam.title}</h2>
-          <button onClick={handleBack} className="btn btn-secondary">Back to Exams</button>
+          <button onClick={onBack} className="btn btn-secondary">Back to Exams</button>
         </div>
         <div className="loading">Loading results...</div>
       </div>
@@ -155,7 +103,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <h2>Results for {exam.title}</h2>
         <div>
-          <button onClick={handleBack} className="btn btn-secondary">Back to Exams</button>
+          <button onClick={onBack} className="btn btn-secondary">Back to Exams</button>
           {results.length > 0 && (
             <button 
               onClick={handleDownload} 
@@ -194,7 +142,7 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
         }}>
           <strong>Error:</strong> {error}
           <button 
-            onClick={handleRetry} 
+            onClick={fetchResults} 
             className="btn btn-primary" 
             style={{marginLeft: '10px', padding: '5px 10px' }}
           >
@@ -207,9 +155,6 @@ const ResultsView = ({ exam, onBack, onNotification }) => {
         <div style={{marginTop: '20px', textAlign: 'center'}}>
           <p>No results available yet.</p>
           <p>Students need to complete the exam for results to appear here.</p>
-          <button onClick={handleRetry} className="btn btn-primary" style={{marginTop: '10px'}}>
-            Refresh Results
-          </button>
         </div>
       ) : (
         <div style={{marginTop: '20px'}}>
