@@ -80,18 +80,15 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
     try {
       const token = await auth.currentUser.getIdToken();
       
-      // Prepare data for API - CHANGED FROM PATCH TO PUT
+      // Prepare data for API
       const submitData = {
         ...formData,
         // Convert shared_emails array for API
         shared_emails: formData.visibility === 'shared' ? formData.shared_emails : []
       };
 
-      console.log('Sending PUT request to:', `${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${exam.id}`);
-      console.log('Request data:', submitData);
-
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/teacher/exams/${exam.id}`, {
-        method: 'PUT', // CHANGED FROM PATCH TO PUT
+      const response = await fetch(`/api/teacher/exams/${exam.id}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -99,12 +96,8 @@ const ExamEditForm = ({ exam, onExamUpdated, onBack }) => {
         body: JSON.stringify(submitData)
       });
 
-      console.log('Response status:', response.status);
-      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        throw new Error(`Failed to update exam: ${response.status} ${response.statusText}`);
+        throw new Error('Failed to update exam');
       }
 
       const updatedExam = await response.json();
