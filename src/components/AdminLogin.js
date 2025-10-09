@@ -1,8 +1,8 @@
 // frontend/src/components/AdminLogin.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../config/firebase'; // ✅ Import auth directly, not app
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase'; // Your Firebase config
 import api from '../utils/axiosConfig';
 import './Auth.css';
 
@@ -14,6 +14,7 @@ const AdminLogin = ({ onAdminLogin }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const auth = getAuth(app);
 
   const handleChange = (e) => {
     setFormData({
@@ -30,7 +31,7 @@ const AdminLogin = ({ onAdminLogin }) => {
     try {
       // 1. Sign in with Firebase Auth
       const userCredential = await signInWithEmailAndPassword(
-        auth, // ✅ Use the exported auth instance directly
+        auth, 
         formData.email, 
         formData.password
       );
@@ -53,7 +54,7 @@ const AdminLogin = ({ onAdminLogin }) => {
       console.log('[DEBUG] Admin user verified:', adminUser);
       
       // Store token and user data
-      localStorage.setItem('adminToken', idToken);
+      localStorage.setItem('adminToken', idToken); // Store Firebase token
       localStorage.setItem('adminUser', JSON.stringify(adminUser));
       
       // Call the parent callback if provided
@@ -65,7 +66,7 @@ const AdminLogin = ({ onAdminLogin }) => {
       navigate('/admin-dashboard', { state: { user: adminUser } });
       
     } catch (error) {
-      console.log('Login error:', error);
+      console.error('Login error:', error);
       
       // Handle different error types
       if (error.code === 'auth/invalid-credential') {
