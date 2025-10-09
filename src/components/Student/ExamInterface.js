@@ -16,7 +16,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFullScreenModal, setShowFullScreenModal] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
   const proctoringRef = useRef({
     tabSwitchCount: 0,
     lastSwitchTime: null,
@@ -88,31 +87,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     answersRef.current = answers;
   }, [answers]);
 
-  useEffect(() => {
-    console.log('ExamInterface - Location state:', location.state);
-    console.log('ExamInterface - Exam data from state:', examFromState);
-    console.log('ExamInterface - Current examData state:', examData);
-    console.log('ExamInterface - Attempt data:', attemptData);
-  }, [location.state, examFromState, examData, attemptData]);
-
-  // Debug effect to track duration issues
-  useEffect(() => {
-    if (examData) {
-      console.log('=== EXAM CONFIGURATION DEBUG ===');
-      console.log('Exam Title:', getExamTitle());
-      console.log('Raw Duration from data:', examDuration, 'minutes');
-      console.log('Validated Duration:', validatedDuration, 'minutes');
-      console.log('Time Left in seconds:', timeLeft);
-      console.log('Time Left in minutes:', timeLeft / 60);
-      console.log('Questions Count:', getQuestions().length);
-      console.log('Tab Switch Count:', tabSwitchCount);
-      console.log('Full Screen Status:', isFullScreen);
-      console.log('Exam Paused:', isPaused);
-      console.log('Attempt Data:', attemptData);
-      console.log('==========================');
-    }
-  }, [examData, validatedDuration, timeLeft, examDuration, tabSwitchCount, isFullScreen, isPaused, attemptData]);
-
   // Handle exam data from location state or props
   useEffect(() => {
     if (examFromState && !examData) {
@@ -147,7 +121,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   }, [exam, examFromState, examData]);
 
-  // SIMPLIFIED Full Screen Detection - This is the key fix
+  // SIMPLE Full Screen Detection - This is the key fix
   useEffect(() => {
     const checkFullScreenStatus = () => {
       return !!(
@@ -160,22 +134,20 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
     const handleFullScreenChange = () => {
       const newFullScreenStatus = checkFullScreenStatus();
-      console.log('Full screen change:', newFullScreenStatus, 'Exam started:', examStarted, 'Initializing:', isInitializing);
+      console.log('Full screen changed to:', newFullScreenStatus);
       
       setIsFullScreen(newFullScreenStatus);
       
-      // Only enforce fullscreen rules after exam has started AND we're not in initialization phase
-      if (examStarted && !isInitializing) {
+      // Only enforce rules if exam is running
+      if (examStarted) {
         if (!newFullScreenStatus) {
           // User exited full screen - pause exam
           setIsPaused(true);
           setShowFullScreenModal(true);
-          console.log('Exam paused due to full screen exit');
         } else {
           // User entered full screen - resume exam
           setIsPaused(false);
           setShowFullScreenModal(false);
-          console.log('Exam resumed - full screen active');
         }
       }
     };
@@ -191,9 +163,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
     };
-  }, [examStarted, isInitializing]);
+  }, [examStarted]);
 
-  // Enhanced Proctoring: Tab switch detection
+  // Proctoring: Tab switch detection
   useEffect(() => {
     if (!examStarted) return;
 
@@ -267,7 +239,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     };
   }, [examStarted, tabSwitchCount]);
 
-  // Enhanced Timer with Pause/Resume functionality
+  // Timer with Pause/Resume functionality
   useEffect(() => {
     if (!examStarted || !examData || isPaused) {
       // Clear timer if exam not started, no data, or paused
@@ -303,35 +275,26 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     };
   }, [examStarted, examData, isPaused]);
 
-  // SIMPLIFIED Request full screen function - This is the key fix
-  const requestFullScreen = async () => {
+  // SIMPLE Request full screen function
+  const requestFullScreen = () => {
     const element = document.documentElement;
     
-    try {
-      if (element.requestFullscreen) {
-        await element.requestFullscreen();
-      } else if (element.mozRequestFullScreen) {
-        await element.mozRequestFullScreen();
-      } else if (element.webkitRequestFullscreen) {
-        await element.webkitRequestFullscreen();
-      } else if (element.msRequestFullscreen) {
-        await element.msRequestFullscreen();
-      }
-      
-      console.log('Full screen entered successfully');
-      setIsFullScreen(true);
-      
-      // End initialization phase after successful fullscreen
-      setTimeout(() => {
-        setIsInitializing(false);
-      }, 1000);
-      
-    } catch (err) {
-      console.log('Full screen request failed:', err);
-      // If full screen fails, still end initialization but show modal
-      setIsInitializing(false);
-      setIsPaused(true);
-      setShowFullScreenModal(true);
+    if (element.requestFullscreen) {
+      element.requestFullscreen().catch(err => {
+        console.log('Full screen request failed:', err);
+      });
+    } else if (element.mozRequestFullScreen) {
+      element.mozRequestFullScreen().catch(err => {
+        console.log('Full screen request failed:', err);
+      });
+    } else if (element.webkitRequestFullscreen) {
+      element.webkitRequestFullscreen().catch(err => {
+        console.log('Full screen request failed:', err);
+      });
+    } else if (element.msRequestFullscreen) {
+      element.msRequestFullscreen().catch(err => {
+        console.log('Full screen request failed:', err);
+      });
     }
   };
 
@@ -430,7 +393,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   };
 
-  // SIMPLIFIED Start Exam function - This is the key fix
+  // SIMPLE Start Exam function
   const startExam = async () => {
     if (!examData || getQuestions().length === 0) {
       alert('Exam data is not available. Please try again.');
@@ -438,7 +401,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
 
     setLoading(true);
-    setIsInitializing(true); // Start initialization phase
     
     try {
       // Initialize exam attempt if not already present
@@ -446,7 +408,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         const attemptInitialized = await initializeExamAttempt();
         if (!attemptInitialized) {
           setLoading(false);
-          setIsInitializing(false);
           return;
         }
       }
@@ -459,18 +420,17 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         isMonitoring: true
       };
       
-      // Start the exam but don't enforce fullscreen rules immediately
+      // Start the exam
       setExamStarted(true);
       
-      // Request full screen but don't pause if it takes time
+      // Request full screen after a short delay to let the UI update
       setTimeout(() => {
         requestFullScreen();
-      }, 500);
+      }, 100);
       
     } catch (error) {
       console.error('Error starting exam:', error);
       alert('Failed to start exam: ' + error.message);
-      setIsInitializing(false);
     } finally {
       setLoading(false);
     }
@@ -557,7 +517,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
       const submissionData = {
         attemptId: attemptData.attemptId,
-        sessionToken: attemptData.sessionToken, // This might be undefined for old attempts
+        sessionToken: attemptData.sessionToken,
         answers: Object.entries(currentAnswers).map(([questionId, answer]) => ({
           questionId: parseInt(questionId),
           answer: answer
@@ -621,19 +581,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   const handleAutoSubmit = () => {
     console.log('Time is up! Auto-submitting exam...');
-    console.log('Current answers ref:', answersRef.current);
-    console.log('Tab switch count:', tabSwitchCount);
-    console.log('Full screen status:', isFullScreen);
-    console.log('Attempt data:', attemptData);
-    
-    // Get the latest answers from ref to ensure we have all selected options
-    const currentAnswers = answersRef.current;
-    const answeredQuestions = Object.keys(currentAnswers).length;
-    const totalQuestions = getQuestions().length;
-    
-    console.log(`Auto-submitting: ${answeredQuestions}/${totalQuestions} questions answered`);
-    
-    // Always submit, even if no answers were selected
     handleSubmit(true);
   };
 
@@ -915,8 +862,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
-      {/* Full Screen Reminder Footer - Only show after initialization */}
-      {!isFullScreen && examStarted && !isInitializing && (
+      {/* Full Screen Reminder Footer */}
+      {!isFullScreen && examStarted && (
         <div className="full-screen-reminder">
           <div className="reminder-content">
             <p>⚠️ <strong>Full Screen Required:</strong> Please return to full screen mode to continue your exam.</p>
