@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // Add this import
 import axios from 'axios';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -52,7 +53,8 @@ function AppContent() {
   const [emailVerificationPending, setEmailVerificationPending] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [error, setError] = useState('');
-  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const navigate = useNavigate(); // Add this hook
 
   // Debug useEffect to track state changes
   useEffect(() => {
@@ -180,11 +182,10 @@ function AppContent() {
         setPendingEmail('');
         console.log('[DEBUG] Verified user logged in, role:', userData.role);
         
-        // ✅ Force redirect for admin users
-        if (userData.role === 'admin') {
-          console.log('[DEBUG] Admin user detected, forcing redirect');
-          setIsRedirecting(true);
-        }
+        // ✅ SIMPLE REDIRECT: Use navigate directly
+        const targetPath = redirectByRole(userData.role);
+        console.log('[DEBUG] Navigating to:', targetPath);
+        navigate(targetPath, { replace: true });
       } else {
         // New user - proceed to role selection
         setRegistrationInfo({
@@ -196,6 +197,7 @@ function AppContent() {
         setEmailVerificationPending(false);
         setPendingEmail('');
         console.log('[DEBUG] New verified user needs registration');
+        navigate('/register', { replace: true });
       }
     } catch (error) {
       console.error('[DEBUG] Error verifying token after email verification:', error);
@@ -238,11 +240,10 @@ function AppContent() {
         
         console.log('[DEBUG] User logged in, role:', userData.role);
         
-        // ✅ Force redirect for admin users
-        if (userData.role === 'admin') {
-          console.log('[DEBUG] Admin user detected, forcing redirect');
-          setIsRedirecting(true);
-        }
+        // ✅ SIMPLE REDIRECT: Use navigate directly
+        const targetPath = redirectByRole(userData.role);
+        console.log('[DEBUG] Navigating to:', targetPath);
+        navigate(targetPath, { replace: true });
         
       } else {
         // For new users, check if email is verified
@@ -262,6 +263,7 @@ function AppContent() {
         });
         setNeedsRegistration(true);
         console.log('[DEBUG] New user detected, needs registration');
+        navigate('/register', { replace: true });
       }
     } catch (error) {
       console.error('[DEBUG] Error verifying token:', error.response?.data || error.message);
@@ -345,11 +347,10 @@ function AppContent() {
         setNeedsRegistration(false);
         console.log('[DEBUG] Registration completed, userRole:', userData.role);
         
-        // ✅ Force redirect for admin users
-        if (userData.role === 'admin') {
-          console.log('[DEBUG] Admin user registered, forcing redirect');
-          setIsRedirecting(true);
-        }
+        // ✅ SIMPLE REDIRECT: Use navigate directly
+        const targetPath = redirectByRole(userData.role);
+        console.log('[DEBUG] Navigating to:', targetPath);
+        navigate(targetPath, { replace: true });
       } else {
         throw new Error(response.data.message || 'Registration failed');
       }
@@ -392,9 +393,8 @@ function AppContent() {
     setEmailVerificationPending(false);
     setPendingEmail('');
     setError('');
-    setIsRedirecting(false);
     auth.signOut();
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   // Helper: redirect based on role
@@ -403,18 +403,6 @@ function AppContent() {
     if (role === 'teacher') return '/teacher-dashboard';
     return '/student-dashboard';
   };
-
-  // ✅ NEW: Effect to handle redirects when isRedirecting is true
-  useEffect(() => {
-    if (isRedirecting && user && userRole) {
-      console.log('[DEBUG] Performing role-based redirect:', userRole);
-      const targetPath = redirectByRole(userRole);
-      console.log('[DEBUG] Redirecting to:', targetPath);
-      
-      // Use window.location for a hard redirect to ensure the route changes
-      window.location.href = targetPath;
-    }
-  }, [isRedirecting, user, userRole]);
 
   if (loading) return <div className="loading-screen">Loading...</div>;
 
@@ -477,6 +465,7 @@ function AppContent() {
                 setPendingEmail('');
                 setError('');
                 auth.signOut();
+                navigate('/login', { replace: true });
               }}
               style={styles.backButton}
             >
@@ -493,20 +482,14 @@ function AppContent() {
       {/* Default route */}
       <Route path="/" element={
         user ? 
-          (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" replace /> : 
-            <Navigate to={redirectByRole(userRole)} replace />
-          ) : 
+          <Navigate to={redirectByRole(userRole)} replace /> : 
           (needsRegistration ? <Navigate to="/register" replace /> : <Navigate to="/login" replace />)
       } />
 
       {/* Login/Register */}
       <Route path="/login" element={
         user ? 
-          (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" replace /> : 
-            <Navigate to={redirectByRole(userRole)} replace />
-          ) : 
+          <Navigate to={redirectByRole(userRole)} replace /> : 
           (needsRegistration ? <Navigate to="/register" replace /> : 
             <Login onLoginSuccess={handleLogin} onEmailRegistration={handleEmailRegistration} />)
       } />
@@ -521,10 +504,7 @@ function AppContent() {
           />
         ) : 
         user ? 
-          (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" replace /> : 
-            <Navigate to={redirectByRole(userRole)} replace />
-          ) : 
+          <Navigate to={redirectByRole(userRole)} replace /> : 
           <Navigate to="/login" replace />
       } />
 

@@ -14,6 +14,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     fetchUsers();
   }, []);
 
+  // In AdminDashboard.js - Update fetchUsers function
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -25,20 +26,30 @@ const AdminDashboard = ({ user, onLogout }) => {
         return;
       }
 
+      console.log('[DEBUG] Making API request to /api/admin/users');
       const response = await api.get('/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000 // 10 second timeout
       });
+      
       console.log('Fetched users:', response.data);
       setUsers(response.data || []);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Fetch error details:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data
+      });
+      
       if (err.response?.status === 401) {
-        // Only clear regular user tokens, not admin-specific ones
+        // Clear tokens and logout
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         if (onLogout) onLogout();
+      } else if (err.code === 'ECONNABORTED') {
+        setError('Request timeout. Please try again.');
       } else {
-        setError(err.response?.data?.message || 'Failed to fetch users');
+        setError(err.response?.data?.message || 'Failed to fetch users. Please check your connection.');
       }
     } finally {
       setLoading(false);
