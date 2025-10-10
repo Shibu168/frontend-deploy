@@ -52,6 +52,7 @@ function AppContent() {
   const [emailVerificationPending, setEmailVerificationPending] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [error, setError] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Debug useEffect to track state changes
   useEffect(() => {
@@ -170,14 +171,20 @@ function AppContent() {
       console.log('[DEBUG] /verify response after verification:', response.data);
 
       if (response.data.success) {
-        // User exists in database
-        setUser(response.data.user);
-        setUserRole(response.data.user.role);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        const userData = response.data.user;
+        setUser(userData);
+        setUserRole(userData.role);
+        localStorage.setItem('user', JSON.stringify(userData));
         setNeedsRegistration(false);
         setEmailVerificationPending(false);
         setPendingEmail('');
-        console.log('[DEBUG] Verified user logged in, role:', response.data.user.role);
+        console.log('[DEBUG] Verified user logged in, role:', userData.role);
+        
+        // ✅ Force redirect for admin users
+        if (userData.role === 'admin') {
+          console.log('[DEBUG] Admin user detected, forcing redirect');
+          setIsRedirecting(true);
+        }
       } else {
         // New user - proceed to role selection
         setRegistrationInfo({
@@ -231,9 +238,10 @@ function AppContent() {
         
         console.log('[DEBUG] User logged in, role:', userData.role);
         
-        // ✅ Check if user is admin and redirect accordingly
+        // ✅ Force redirect for admin users
         if (userData.role === 'admin') {
-          console.log('[DEBUG] Admin user detected, should redirect to admin dashboard');
+          console.log('[DEBUG] Admin user detected, forcing redirect');
+          setIsRedirecting(true);
         }
         
       } else {
@@ -330,11 +338,18 @@ function AppContent() {
       console.log('[DEBUG] /register response:', response.data);
 
       if (response.data.success) {
-        setUser(response.data.user);
-        setUserRole(response.data.user.role);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        const userData = response.data.user;
+        setUser(userData);
+        setUserRole(userData.role);
+        localStorage.setItem('user', JSON.stringify(userData));
         setNeedsRegistration(false);
-        console.log('[DEBUG] Registration completed, userRole:', response.data.user.role);
+        console.log('[DEBUG] Registration completed, userRole:', userData.role);
+        
+        // ✅ Force redirect for admin users
+        if (userData.role === 'admin') {
+          console.log('[DEBUG] Admin user registered, forcing redirect');
+          setIsRedirecting(true);
+        }
       } else {
         throw new Error(response.data.message || 'Registration failed');
       }
@@ -377,6 +392,7 @@ function AppContent() {
     setEmailVerificationPending(false);
     setPendingEmail('');
     setError('');
+    setIsRedirecting(false);
     auth.signOut();
     window.location.href = '/login';
   };
@@ -387,6 +403,18 @@ function AppContent() {
     if (role === 'teacher') return '/teacher-dashboard';
     return '/student-dashboard';
   };
+
+  // ✅ NEW: Effect to handle redirects when isRedirecting is true
+  useEffect(() => {
+    if (isRedirecting && user && userRole) {
+      console.log('[DEBUG] Performing role-based redirect:', userRole);
+      const targetPath = redirectByRole(userRole);
+      console.log('[DEBUG] Redirecting to:', targetPath);
+      
+      // Use window.location for a hard redirect to ensure the route changes
+      window.location.href = targetPath;
+    }
+  }, [isRedirecting, user, userRole]);
 
   if (loading) return <div className="loading-screen">Loading...</div>;
 
@@ -466,20 +494,20 @@ function AppContent() {
       <Route path="/" element={
         user ? 
           (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" /> : 
-            <Navigate to={redirectByRole(userRole)} />
+            <Navigate to="/admin-dashboard" replace /> : 
+            <Navigate to={redirectByRole(userRole)} replace />
           ) : 
-          (needsRegistration ? <Navigate to="/register" /> : <Navigate to="/login" />)
+          (needsRegistration ? <Navigate to="/register" replace /> : <Navigate to="/login" replace />)
       } />
 
       {/* Login/Register */}
       <Route path="/login" element={
         user ? 
           (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" /> : 
-            <Navigate to={redirectByRole(userRole)} />
+            <Navigate to="/admin-dashboard" replace /> : 
+            <Navigate to={redirectByRole(userRole)} replace />
           ) : 
-          (needsRegistration ? <Navigate to="/register" /> : 
+          (needsRegistration ? <Navigate to="/register" replace /> : 
             <Login onLoginSuccess={handleLogin} onEmailRegistration={handleEmailRegistration} />)
       } />
       
@@ -494,29 +522,29 @@ function AppContent() {
         ) : 
         user ? 
           (userRole === 'admin' ? 
-            <Navigate to="/admin-dashboard" /> : 
-            <Navigate to={redirectByRole(userRole)} />
+            <Navigate to="/admin-dashboard" replace /> : 
+            <Navigate to={redirectByRole(userRole)} replace />
           ) : 
-          <Navigate to="/login" />
+          <Navigate to="/login" replace />
       } />
 
-      {/* ✅ UPDATED: All dashboards use regular user authentication */}
+      {/* Dashboard routes */}
       <Route path="/admin-dashboard" element={
         user && userRole === 'admin' ? 
           <AdminDashboard user={user} onLogout={handleLogout} /> : 
-          <Navigate to="/login" />
+          <Navigate to="/login" replace />
       } />
       
       <Route path="/student-dashboard" element={
         user && userRole === 'student' ? 
           <StudentDashboard user={user} onLogout={handleLogout} /> : 
-          <Navigate to="/login" />
+          <Navigate to="/login" replace />
       } />
       
       <Route path="/teacher-dashboard" element={
         user && userRole === 'teacher' ? 
           <TeacherDashboard user={user} onLogout={handleLogout} /> : 
-          <Navigate to="/login" />
+          <Navigate to="/login" replace />
       } />
 
       {/* Exam routes */}
