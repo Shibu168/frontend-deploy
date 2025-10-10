@@ -46,7 +46,6 @@ const tokenManager = {
 
 function AppContent() {
   const [user, setUser] = useState(null);
-  const [adminUser, setAdminUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [needsRegistration, setNeedsRegistration] = useState(false);
   const [registrationInfo, setRegistrationInfo] = useState(null);
@@ -215,6 +214,9 @@ function AppContent() {
   };
 
   // Handle normal login
+  // In your App.js - Update the handleLogin function
+
+// Handle normal login
   const handleLogin = async (idToken, firebaseUser = null) => {
     console.log('[DEBUG] handleLogin called');
     
@@ -237,11 +239,20 @@ function AppContent() {
       console.log('[DEBUG] /verify response:', response.data);
 
       if (response.data.success) {
-        setUser(response.data.user);
-        setUserRole(response.data.user.role);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        const userData = response.data.user;
+        setUser(userData);
+        setUserRole(userData.role);
+        localStorage.setItem('user', JSON.stringify(userData));
         setNeedsRegistration(false);
-        console.log('[DEBUG] Existing user logged in, role:', response.data.user.role);
+        
+        console.log('[DEBUG] User logged in, role:', userData.role);
+        
+        // ✅ NEW: Check if user is admin and redirect accordingly
+        if (userData.role === 'admin') {
+          console.log('[DEBUG] Admin user detected, should redirect to admin dashboard');
+          // The useEffect will handle the redirect based on userRole change
+        }
+        
       } else {
         // For new users, check if email is verified
         if (firebaseUser && !firebaseUser.emailVerified) {
@@ -499,19 +510,29 @@ function AppContent() {
     );
   }
 
+// In your App.js - Update the Routes section
+
   return (
     <Routes>
       {/* Default route */}
       <Route path="/" element={
-        user ? <Navigate to={redirectByRole(userRole)} /> : 
-        needsRegistration ? <Navigate to="/register" /> : <Navigate to="/login" />
+        user ? 
+          (userRole === 'admin' ? 
+            <Navigate to="/admin-dashboard" /> : 
+            <Navigate to={redirectByRole(userRole)} />
+          ) : 
+          (needsRegistration ? <Navigate to="/register" /> : <Navigate to="/login" />)
       } />
 
       {/* Login/Register */}
       <Route path="/login" element={
-        user ? <Navigate to={redirectByRole(userRole)} /> : 
-        needsRegistration ? <Navigate to="/register" /> : 
-        <Login onLoginSuccess={handleLogin} onEmailRegistration={handleEmailRegistration} />
+        user ? 
+          (userRole === 'admin' ? 
+            <Navigate to="/admin-dashboard" /> : 
+            <Navigate to={redirectByRole(userRole)} />
+          ) : 
+          (needsRegistration ? <Navigate to="/register" /> : 
+            <Login onLoginSuccess={handleLogin} onEmailRegistration={handleEmailRegistration} />)
       } />
       
       <Route path="/register" element={
@@ -523,28 +544,40 @@ function AppContent() {
             onClearError={() => setError('')}
           />
         ) : 
-        user ? <Navigate to={redirectByRole(userRole)} /> : <Navigate to="/login" />
+        user ? 
+          (userRole === 'admin' ? 
+            <Navigate to="/admin-dashboard" /> : 
+            <Navigate to={redirectByRole(userRole)} />
+          ) : 
+          <Navigate to="/login" />
       } />
 
-      {/* Dashboards */}
+      {/* ✅ UPDATED: Admin dashboard now uses regular user authentication */}
       <Route path="/admin-dashboard" element={
-        adminUser ? <AdminDashboard user={adminUser} onLogout={handleAdminLogout} /> : <Navigate to="/admin-login" />
+        user && userRole === 'admin' ? 
+          <AdminDashboard user={user} onLogout={handleLogout} /> : 
+          <Navigate to="/login" />
       } />
       
+      {/* Student/Teacher dashboards */}
       <Route path="/student-dashboard" element={
-        user && userRole === 'student' ? <StudentDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />
+        user && userRole === 'student' ? 
+          <StudentDashboard user={user} onLogout={handleLogout} /> : 
+          <Navigate to="/login" />
       } />
       
       <Route path="/teacher-dashboard" element={
-        user && userRole === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />
+        user && userRole === 'teacher' ? 
+          <TeacherDashboard user={user} onLogout={handleLogout} /> : 
+          <Navigate to="/login" />
       } />
 
-      {/* Admin login */}
-      <Route path="/admin-login" element={
+      {/* ❌ REMOVE or COMMENT OUT the separate admin login route */}
+      {/* <Route path="/admin-login" element={
         adminUser ? <Navigate to="/admin-dashboard" /> : <AdminLogin onAdminLogin={handleAdminLogin} />
-      } />
+      } /> */}
 
-      {/* Exam routes */}
+      {/* Exam routes (keep as is) */}
       <Route 
         path="/exam/:token" 
         element={
