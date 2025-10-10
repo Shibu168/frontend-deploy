@@ -9,7 +9,6 @@ import Register from './components/Register';
 import StudentDashboard from './components/StudentDashboard';
 import TeacherDashboard from './components/TeacherDashboard';
 import AdminDashboard from './components/AdminDashboard';
-import AdminLogin from './components/AdminLogin';
 import PrivateExamAccess from './components/Student/PrivateExamAccess';
 import ExamInterface from './components/Student/ExamInterface';
 
@@ -71,12 +70,10 @@ function AppContent() {
   useEffect(() => {
     console.log('[DEBUG] Restoring session from localStorage...');
     const savedUser = localStorage.getItem('user');
-    const savedAdminUser = localStorage.getItem('adminUser');
     const savedToken = tokenManager.getToken();
 
     console.log('[DEBUG] Found in storage:', {
       user: !!savedUser,
-      adminUser: !!savedAdminUser,
       token: !!savedToken
     });
 
@@ -94,16 +91,6 @@ function AppContent() {
     } else if (savedUser && !savedToken) {
       console.log('[DEBUG] Inconsistent state: user exists but no token');
       localStorage.removeItem('user');
-    }
-
-    if (savedAdminUser) {
-      try {
-        setAdminUser(JSON.parse(savedAdminUser));
-      } catch (error) {
-        console.error('Error parsing admin user data:', error);
-        localStorage.removeItem('adminUser');
-        localStorage.removeItem('adminToken');
-      }
     }
 
     setLoading(false);
@@ -214,9 +201,6 @@ function AppContent() {
   };
 
   // Handle normal login
-  // In your App.js - Update the handleLogin function
-
-// Handle normal login
   const handleLogin = async (idToken, firebaseUser = null) => {
     console.log('[DEBUG] handleLogin called');
     
@@ -247,10 +231,9 @@ function AppContent() {
         
         console.log('[DEBUG] User logged in, role:', userData.role);
         
-        // ✅ NEW: Check if user is admin and redirect accordingly
+        // ✅ Check if user is admin and redirect accordingly
         if (userData.role === 'admin') {
           console.log('[DEBUG] Admin user detected, should redirect to admin dashboard');
-          // The useEffect will handle the redirect based on userRole change
         }
         
       } else {
@@ -307,30 +290,6 @@ function AppContent() {
     } else {
       console.warn('[DEBUG] Cannot set user: invalid token or user data');
       setError('Invalid session. Please login again.');
-    }
-  };
-
-  // Admin login
-  const handleAdminLogin = async (email, password) => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await axios.post(`${BACKEND_URL}/api/admin/login`, 
-        { email, password },
-        { timeout: 10000 }
-      );
-      if (response.data.token && response.data.user) {
-        setAdminUser(response.data.user);
-        localStorage.setItem('adminToken', response.data.token);
-        localStorage.setItem('adminUser', JSON.stringify(response.data.user));
-        console.log('[DEBUG] Admin logged in:', response.data.user.email);
-      }
-    } catch (error) {
-      console.error('[DEBUG] Admin login error:', error);
-      setError('Admin login failed. Please check your credentials.');
-      throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -422,15 +381,6 @@ function AppContent() {
     window.location.href = '/login';
   };
 
-  const handleAdminLogout = () => {
-    console.log('[DEBUG] Logging out admin');
-    setAdminUser(null);
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUser');
-    setError('');
-    window.location.href = '/admin-login';
-  };
-
   // Helper: redirect based on role
   const redirectByRole = (role) => {
     if (role === 'admin') return '/admin-dashboard';
@@ -510,8 +460,6 @@ function AppContent() {
     );
   }
 
-// In your App.js - Update the Routes section
-
   return (
     <Routes>
       {/* Default route */}
@@ -552,14 +500,13 @@ function AppContent() {
           <Navigate to="/login" />
       } />
 
-      {/* ✅ UPDATED: Admin dashboard now uses regular user authentication */}
+      {/* ✅ UPDATED: All dashboards use regular user authentication */}
       <Route path="/admin-dashboard" element={
         user && userRole === 'admin' ? 
           <AdminDashboard user={user} onLogout={handleLogout} /> : 
           <Navigate to="/login" />
       } />
       
-      {/* Student/Teacher dashboards */}
       <Route path="/student-dashboard" element={
         user && userRole === 'student' ? 
           <StudentDashboard user={user} onLogout={handleLogout} /> : 
@@ -572,12 +519,7 @@ function AppContent() {
           <Navigate to="/login" />
       } />
 
-      {/* ❌ REMOVE or COMMENT OUT the separate admin login route */}
-      {/* <Route path="/admin-login" element={
-        adminUser ? <Navigate to="/admin-dashboard" /> : <AdminLogin onAdminLogin={handleAdminLogin} />
-      } /> */}
-
-      {/* Exam routes (keep as is) */}
+      {/* Exam routes */}
       <Route 
         path="/exam/:token" 
         element={
