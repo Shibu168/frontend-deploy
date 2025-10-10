@@ -14,22 +14,23 @@ const AdminDashboard = ({ user, onLogout }) => {
     fetchUsers();
   }, []);
 
-  // In AdminDashboard.js - Update fetchUsers function
+  // FIX: Use the server JWT token instead of Firebase token
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      console.log('[DEBUG] Fetching users with token:', token ? 'Token exists' : 'No token');
+      // Get the server JWT token from admin login
+      const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('token');
+      console.log('[DEBUG] Fetching users with adminToken:', adminToken ? 'Token exists' : 'No token');
       
-      if (!token) {
-        setError('No authentication token found');
+      if (!adminToken) {
+        setError('No admin authentication token found. Please login as admin.');
         setLoading(false);
         return;
       }
 
       console.log('[DEBUG] Making API request to /api/admin/users');
       const response = await api.get('/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000 // 10 second timeout
+        headers: { Authorization: `Bearer ${adminToken}` },
+        timeout: 10000
       });
       
       console.log('Fetched users:', response.data);
@@ -42,7 +43,9 @@ const AdminDashboard = ({ user, onLogout }) => {
       });
       
       if (err.response?.status === 401) {
+        setError('Admin authentication failed. Please login again.');
         // Clear tokens and logout
+        localStorage.removeItem('adminToken');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         if (onLogout) onLogout();
@@ -58,10 +61,10 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      const token = localStorage.getItem('token');
+      const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('token');
       await api.put(`/api/admin/users/${userId}/role`, 
         { role: newRole },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${adminToken}` } }
       );
       setMessage('User role updated successfully');
       setUsers(users.map(u => (u.id === userId ? { ...u, role: newRole } : u)));
@@ -76,9 +79,9 @@ const AdminDashboard = ({ user, onLogout }) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const adminToken = localStorage.getItem('adminToken') || localStorage.getItem('token');
       await api.delete(`/api/admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${adminToken}` }
       });
       setMessage('User deleted successfully');
       setUsers(users.filter(u => u.id !== userId));
@@ -172,7 +175,7 @@ const AdminDashboard = ({ user, onLogout }) => {
                           value={u.role}
                           onChange={(e) => handleRoleChange(u.id, e.target.value)}
                           className={`role-select ${u.role}`}
-                          disabled={u.id === user?.id} // Don't let admin change their own role
+                          disabled={u.id === user?.id}
                         >
                           <option value="student">Student</option>
                           <option value="teacher">Teacher</option>
