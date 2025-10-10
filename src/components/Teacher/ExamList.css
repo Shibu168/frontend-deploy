@@ -1,0 +1,362 @@
+.teacher-exam-list {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.teacher-exam-list h2 {
+  color: #2c3e50;
+  margin-bottom: 30px;
+  font-size: 2rem;
+  border-bottom: 3px solid #3498db;
+  padding-bottom: 10px;
+}
+
+.loading {
+  text-align: center;
+  font-size: 1.2rem;
+  color: #7f8c8d;
+  padding: 40px;
+}
+
+.no-exams {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border: 2px dashed #bdc3c7;
+}
+
+.no-exams p {
+  font-size: 1.1rem;
+  color: #7f8c8d;
+  margin: 0;
+}
+
+.exams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 25px;
+  margin-top: 20px;
+}
+
+.exam-card {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e1e8ed;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.exam-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+.exam-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.exam-header h3 {
+  color: #2c3e50;
+  font-size: 1.4rem;
+  margin: 0;
+  flex: 1;
+  margin-right: 15px;
+}
+
+.exam-badges {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.status-badge, .visibility-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.draft {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.status-badge.published {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.visibility-badge.public {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.visibility-badge.private {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.visibility-badge.shared {
+  background: #e2e3e5;
+  color: #383d41;
+  border: 1px solid #d6d8db;
+}
+
+.exam-description {
+  color: #5d6d7e;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+
+.exam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #566573;
+  font-size: 0.9rem;
+}
+
+.shareable-link-section {
+  background: #e8f4f8;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #3498db;
+}
+
+.link-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.copy-link-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.copy-link-btn:hover {
+  background: #2980b9;
+}
+
+.copy-link-btn.copied {
+  background: #27ae60;
+}
+
+.link-preview {
+  background: white;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #bdc3c7;
+}
+
+.link-preview code {
+  font-size: 0.8rem;
+  word-break: break-all;
+  color: #2c3e50;
+}
+
+.link-help {
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+.exam-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary, .btn-danger, .btn-warning {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-primary {
+  background: #3498db;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #95a5a6;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #7f8c8d;
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: #f39c12;
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #d68910;
+  transform: translateY(-1px);
+}
+
+/* Edit Form Styles */
+.exam-edit-form {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #3498db;
+}
+
+.exam-edit-form h3 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.form-input, .form-textarea, .form-select {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-input:focus, .form-textarea:focus, .form-select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.form-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .teacher-exam-list {
+    padding: 15px;
+  }
+  
+  .exams-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .exam-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .exam-badges {
+    align-self: flex-start;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .exam-actions {
+    flex-direction: column;
+  }
+  
+  .btn-primary, .btn-secondary, .btn-danger, .btn-warning {
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .exam-card {
+    padding: 20px;
+  }
+  
+  .exam-meta {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .link-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+}
