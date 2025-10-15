@@ -1,4 +1,4 @@
-/* Clean TeacherDashboard.css */
+/* Clean TeacherDashboard.css - IMPROVED MOBILE RESPONSIVENESS */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * {
@@ -20,33 +20,46 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 30px;
-  background: rgba(255, 255, 255, 0.95);
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   position: sticky;
   top: 0;
   z-index: 100;
   border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .teacher-header h1 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: #1e293b;
   margin: 0;
+  flex: 1;
+  min-width: 200px;
 }
 
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-right: 20px;
+  gap: 10px;
+  margin-right: 15px;
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   overflow: hidden;
   background: #e2e8f0;
@@ -54,6 +67,7 @@
   align-items: center;
   justify-content: center;
   border: 2px solid #3b82f6;
+  flex-shrink: 0;
 }
 
 .user-avatar img {
@@ -69,34 +83,37 @@
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #1e293b;
+  white-space: nowrap;
 }
 
 .user-role {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
 }
 
 /* Logout Styles */
 .logout-container {
   position: relative;
+  flex-shrink: 0;
 }
 
 .logout-btn {
-  padding: 10px 20px;
+  padding: 10px 16px;
   background: #ef4444;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .logout-btn:hover {
@@ -112,8 +129,8 @@
 
 .loading-spinner {
   display: inline-block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top-color: #fff;
@@ -125,40 +142,46 @@
 }
 
 .confirm-dialog {
-  position: absolute;
-  top: 50px;
-  right: 0;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 280px;
-  z-index: 101;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 320px;
+  z-index: 1000;
   border: 1px solid #e2e8f0;
 }
 
 .confirm-text {
-  margin: 0 0 16px 0;
+  margin: 0 0 20px 0;
   color: #1e293b;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   text-align: center;
+  line-height: 1.4;
 }
 
 .confirm-buttons {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .confirm-button {
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 10px 20px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   transition: all 0.2s ease;
+  flex: 1;
+  min-width: 100px;
 }
 
 .confirm-yes {
@@ -189,22 +212,30 @@
   border-bottom: 1px solid #e2e8f0;
   position: relative;
   z-index: 90;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.teacher-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-button {
-  padding: 16px 32px;
+  padding: 14px 20px;
   background: white;
   border: none;
   border-bottom: 3px solid transparent;
   cursor: pointer;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   transition: all 0.3s ease;
   color: #64748b;
   position: relative;
-  flex: 1;
-  text-align: center;
-  min-width: 140px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-width: fit-content;
 }
 
 .nav-button:hover {
@@ -220,7 +251,7 @@
 
 /* Content Area */
 .teacher-content {
-  padding: 30px;
+  padding: 20px;
   min-height: calc(100vh - 140px);
   background: #f8fafc;
 }
@@ -229,28 +260,29 @@
 .tab-content {
   background: white;
   border-radius: 12px;
-  padding: 30px;
+  padding: 24px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
+  overflow: hidden;
 }
 
 /* Exam List Styles */
 .exam-list h2 {
   margin-top: 0;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
   color: #1e293b;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
 }
 
 .exam-item {
-  padding: 20px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
   background: white;
   transition: all 0.3s ease;
 }
@@ -262,35 +294,40 @@
 
 .exam-item-content {
   flex: 1;
+  width: 100%;
 }
 
 .exam-item-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: #1e293b;
   margin-bottom: 4px;
+  word-break: break-word;
 }
 
 .exam-item-meta {
-  font-size: 14px;
+  font-size: 13px;
   color: #64748b;
 }
 
 .exam-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .exam-actions button {
-  padding: 8px 16px;
+  padding: 8px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: white;
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
 .exam-actions button:hover {
@@ -303,35 +340,37 @@
 .exam-form, .question-form {
   background: white;
   border-radius: 12px;
-  padding: 30px;
+  padding: 24px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
-  max-width: 700px;
+  max-width: 100%;
+  width: 100%;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-weight: 600;
   color: #1e293b;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .form-group input,
 .form-group textarea,
 .form-group select {
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 14px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   background: white;
   color: #1e293b;
   transition: all 0.3s ease;
+  -webkit-appearance: none;
 }
 
 .form-group input:focus,
@@ -349,19 +388,23 @@
 
 .form-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
-  margin-top: 30px;
+  margin-top: 24px;
+  flex-wrap: wrap;
 }
 
 .btn {
-  padding: 12px 24px;
+  padding: 12px 20px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
   transition: all 0.3s ease;
+  flex: 1;
+  min-width: 120px;
+  text-align: center;
 }
 
 .btn-primary {
@@ -387,39 +430,48 @@
 
 /* Results View */
 .results-view h2 {
-  margin-bottom: 25px;
+  margin-bottom: 20px;
   color: #1e293b;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
+}
+
+.results-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-top: 20px;
 }
 
 .results-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
   background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  min-width: 600px;
 }
 
 .results-table th,
 .results-table td {
-  padding: 16px 20px;
+  padding: 14px 16px;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
 .results-table th {
   background: #f8fafc;
   font-weight: 700;
   color: #1e293b;
-  font-size: 14px;
+  font-size: 13px;
+  position: sticky;
+  top: 0;
 }
 
 .results-table td {
   color: #64748b;
   font-weight: 500;
+  font-size: 13px;
 }
 
 .results-table tbody tr:hover {
@@ -429,14 +481,18 @@
 .download-btn {
   background: #10b981;
   color: white;
-  padding: 12px 20px;
+  padding: 12px 18px;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 20px;
+  font-size: 13px;
+  margin-bottom: 16px;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .download-btn:hover {
@@ -472,14 +528,14 @@
 /* Empty States */
 .empty-state {
   text-align: center;
-  padding: 60px 40px;
+  padding: 40px 20px;
   color: #64748b;
 }
 
 .empty-state-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 20px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
   background: #f1f5f9;
   border-radius: 50%;
   display: flex;
@@ -490,20 +546,31 @@
 
 .empty-state h3 {
   color: #64748b;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .empty-state p {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.5;
 }
 
-/* Responsive Design */
+/* Overlay for confirm dialog */
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Enhanced Mobile Responsiveness */
 @media (max-width: 1024px) {
   .teacher-header {
-    padding: 15px 20px;
+    padding: 16px 20px;
   }
   
   .teacher-nav {
@@ -511,6 +578,10 @@
   }
   
   .teacher-content {
+    padding: 16px;
+  }
+  
+  .tab-content {
     padding: 20px;
   }
 }
@@ -518,53 +589,84 @@
 @media (max-width: 768px) {
   .teacher-header {
     flex-direction: column;
-    gap: 15px;
-    text-align: center;
-    padding: 20px 15px;
+    gap: 12px;
+    text-align: left;
+    padding: 16px;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
   
   .teacher-header h1 {
-    font-size: 24px;
+    font-size: 22px;
+    min-width: auto;
+  }
+  
+  .user-profile {
+    margin-right: 0;
+    align-self: flex-start;
+  }
+  
+  .logout-container {
+    align-self: stretch;
+  }
+  
+  .logout-btn {
+    width: 100%;
+    justify-content: center;
   }
   
   .teacher-nav {
-    flex-direction: column;
-    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 8px;
   }
   
   .nav-button {
-    width: 100%;
-    text-align: center;
-    padding: 14px 20px;
+    padding: 12px 16px;
+    font-size: 12px;
+    min-width: auto;
+    flex-shrink: 0;
   }
   
   .teacher-content {
-    padding: 15px;
+    padding: 12px;
+    min-height: calc(100vh - 160px);
+  }
+  
+  .tab-content {
+    padding: 16px;
+    border-radius: 8px;
   }
   
   .exam-item {
-    flex-direction: column;
-    gap: 15px;
-    align-items: flex-start;
+    padding: 14px;
+    gap: 10px;
   }
   
   .exam-actions {
+    justify-content: space-between;
+  }
+  
+  .exam-actions button {
+    flex: 1;
+    text-align: center;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .btn {
     width: 100%;
-    justify-content: flex-end;
+    min-width: auto;
   }
   
-  .results-table {
-    font-size: 14px;
-  }
-  
-  .results-table th,
-  .results-table td {
-    padding: 12px 10px;
-  }
-  
-  .confirm-dialog {
-    width: 250px;
-    right: -20px;
+  .exam-form, .question-form {
+    padding: 20px;
   }
 }
 
@@ -574,36 +676,130 @@
   }
   
   .nav-button {
-    padding: 12px 16px;
-    font-size: 13px;
-    min-width: auto;
+    padding: 10px 12px;
+    font-size: 11px;
   }
   
   .tab-content {
-    padding: 20px 15px;
-    border-radius: 8px;
+    padding: 14px;
+    border-radius: 6px;
   }
   
-  .form-actions {
-    flex-direction: column;
+  .teacher-content {
+    padding: 10px;
   }
   
-  .btn {
+  .exam-list h2,
+  .results-view h2 {
+    font-size: 18px;
+  }
+  
+  .exam-item-title {
+    font-size: 15px;
+  }
+  
+  .exam-item-meta {
+    font-size: 12px;
+  }
+  
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  
+  .confirm-dialog {
+    padding: 20px;
+    width: 85%;
+  }
+  
+  .confirm-text {
+    font-size: 15px;
+  }
+  
+  .confirm-button {
+    padding: 10px 16px;
+    font-size: 13px;
+    min-width: 80px;
+  }
+  
+  .results-table th,
+  .results-table td {
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+  
+  .download-btn {
+    padding: 10px 14px;
+    font-size: 12px;
     width: 100%;
-    text-align: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .teacher-header {
+    padding: 12px;
   }
   
-  .results-table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
+  .teacher-header h1 {
+    font-size: 18px;
+  }
+  
+  .nav-button {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  
+  .tab-content {
+    padding: 12px;
+  }
+  
+  .user-name {
+    font-size: 12px;
+  }
+  
+  .user-role {
+    font-size: 10px;
+  }
+  
+  .logout-btn {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+  .nav-button,
+  .logout-btn,
+  .btn,
+  .exam-actions button,
+  .confirm-button,
+  .download-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  
+  .nav-button.active {
+    border-bottom-width: 4px;
+  }
+  
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 44px;
   }
 }
 
 /* Focus states for accessibility */
 .nav-button:focus-visible,
 .logout-btn:focus-visible,
-.btn:focus-visible {
+.btn:focus-visible,
+.exam-actions button:focus-visible,
+.confirm-button:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
@@ -611,6 +807,7 @@
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -624,4 +821,28 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Print Styles */
+@media print {
+  .teacher-header,
+  .teacher-nav,
+  .logout-container,
+  .download-btn {
+    display: none;
+  }
+  
+  .teacher-dashboard {
+    background: white;
+  }
+  
+  .teacher-content {
+    padding: 0;
+  }
+  
+  .tab-content {
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
 }

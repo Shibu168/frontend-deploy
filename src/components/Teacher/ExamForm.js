@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import './ExamForm.css'; // We'll create this CSS file
 const ExamForm = ({ onExamCreated }) => {
   const [formData, setFormData] = useState({
     title: '',
