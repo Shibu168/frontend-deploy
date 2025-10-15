@@ -54,7 +54,6 @@ const TeacherDashboard = ({ user, onLogout }) => {
     <div className="teacher-dashboard">
       <header className="teacher-header">
         <div className="header-content">
-          <h1>Teacher Dashboard</h1>
           <div className="user-profile">
             <div className="user-avatar">
               {getUserPhotoURL() ? (
