@@ -15,6 +15,9 @@ const TeacherDashboard = ({ user, onLogout }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentSubmissions, setRecentSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,6 +27,128 @@ const TeacherDashboard = ({ user, onLogout }) => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Fetch dashboard data
+  useEffect(() => {
+    if (activeTab === 'Dashboard') {
+      fetchDashboardData();
+    }
+  }, [activeTab]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = await auth.currentUser.getIdToken();
+      
+      // Fetch teacher's exams
+      const examsResponse = await fetch('/api/teacher/exams', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!examsResponse.ok) throw new Error('Failed to fetch exams');
+      const exams = await examsResponse.json();
+
+      // Calculate dashboard statistics
+      const now = new Date();
+      const totalExams = exams.length;
+      
+      const upcomingExams = exams.filter(exam => 
+        new Date(exam.start_time) > now
+      ).length;
+      
+      const ongoingExams = exams.filter(exam => {
+        const startTime = new Date(exam.start_time);
+        const endTime = new Date(exam.end_time);
+        return now >= startTime && now <= endTime;
+      }).length;
+
+      // Fetch all exam attempts to get student count and recent submissions
+      let allStudents = new Set();
+      let allSubmissions = [];
+
+      for (const exam of exams) {
+        try {
+          const resultsResponse = await fetch(`/api/teacher/exams/${exam.id}/results`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (resultsResponse.ok) {
+            const results = await resultsResponse.json();
+            
+            results.forEach(attempt => {
+              // Add student to unique set
+              if (attempt.student) {
+                allStudents.add(attempt.student.id);
+              }
+
+              // Prepare submission data
+              if (attempt.end_time) {
+                const totalMarks = attempt.answers?.reduce((sum, answer) => 
+                  sum + (answer.question?.marks || 0), 0) || exam.total_marks || 100;
+                
+                const marksObtained = attempt.answers?.reduce((sum, answer) => 
+                  sum + (answer.marks_obtained || 0), 0) || attempt.score || 0;
+                
+                const percentage = totalMarks > 0 ? (marksObtained / totalMarks) * 100 : 0;
+
+                let status = 'average';
+                if (percentage >= 90) status = 'excellent';
+                else if (percentage >= 75) status = 'good';
+
+                allSubmissions.push({
+                  id: attempt.id,
+                  fullName: attempt.student?.name || 'Unknown Student',
+                  totalMarks: totalMarks,
+                  marksObtained: marksObtained,
+                  percentage: percentage,
+                  submissionTime: new Date(attempt.end_time).toLocaleTimeString([], { 
+                    hour: '2-digit', minute: '2-digit' 
+                  }),
+                  status: status,
+                  examName: exam.title,
+                  student: attempt.student
+                });
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching results for exam ${exam.id}:`, error);
+        }
+      }
+
+      // Sort submissions by submission time (most recent first) and take latest 5
+      const sortedSubmissions = allSubmissions
+        .sort((a, b) => new Date(b.submissionTime) - new Date(a.submissionTime))
+        .slice(0, 5);
+
+      setDashboardData({
+        totalExams,
+        upcomingExams,
+        totalStudents: allStudents.size,
+        ongoingExams
+      });
+
+      setRecentSubmissions(sortedSubmissions);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      // Fallback to dummy data if API fails
+      setDashboardData({
+        totalExams: 0,
+        upcomingExams: 0,
+        totalStudents: 0,
+        ongoingExams: 0
+      });
+      setRecentSubmissions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogoutClick = () => {
     setShowLogoutConfirm(true);
@@ -62,93 +187,39 @@ const TeacherDashboard = ({ user, onLogout }) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  // Mock data for dashboard stats
+  // Stats data based on real data
   const stats = [
     {
       title: 'Total Exams Created',
-      value: 24,
+      value: dashboardData?.totalExams || 0,
       icon: <BookOpen size={36} />,
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      trend: '+12%',
-      subtitle: 'vs last month'
+      trend: dashboardData?.totalExams > 0 ? '+0%' : 'No exams',
+      subtitle: 'All your exams'
     },
     {
       title: 'Upcoming Exams',
-      value: 5,
+      value: dashboardData?.upcomingExams || 0,
       icon: <Calendar size={36} />,
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      trend: '3 this week',
-      subtitle: '2 next week'
+      trend: dashboardData?.upcomingExams > 0 ? 'Scheduled' : 'No upcoming',
+      subtitle: dashboardData?.upcomingExams > 0 ? 'Check schedule' : 'All clear'
     },
     {
       title: 'Total Students Enrolled',
-      value: 152,
+      value: dashboardData?.totalStudents || 0,
       icon: <Users size={36} />,
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      trend: '+8%',
-      subtitle: 'Active learners'
+      trend: dashboardData?.totalStudents > 0 ? 'Active' : 'No students',
+      subtitle: 'Across all exams'
     },
     {
       title: 'Ongoing Exams',
-      value: 3,
+      value: dashboardData?.ongoingExams || 0,
       icon: <Activity size={36} />,
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      trend: 'Live now',
-      subtitle: '24 students online'
-    }
-  ];
-
-  // Mock data for recent submissions
-  const submissions = [
-    {
-      id: 1,
-      fullName: 'Priya Sharma',
-      totalMarks: 100,
-      marksObtained: 87,
-      percentage: 87,
-      submissionTime: '2:35 PM',
-      status: 'good',
-      examName: 'Mathematics Final'
-    },
-    {
-      id: 2,
-      fullName: 'Rahul Verma',
-      totalMarks: 100,
-      marksObtained: 92,
-      percentage: 92,
-      submissionTime: '2:28 PM',
-      status: 'excellent',
-      examName: 'Physics Mid-term'
-    },
-    {
-      id: 3,
-      fullName: 'Anita Desai',
-      totalMarks: 100,
-      marksObtained: 78,
-      percentage: 78,
-      submissionTime: '2:40 PM',
-      status: 'average',
-      examName: 'Chemistry Quiz'
-    },
-    {
-      id: 4,
-      fullName: 'Vikram Singh',
-      totalMarks: 100,
-      marksObtained: 95,
-      percentage: 95,
-      submissionTime: '2:25 PM',
-      status: 'excellent',
-      examName: 'Biology Test'
-    },
-    {
-      id: 5,
-      fullName: 'Sneha Patel',
-      totalMarks: 100,
-      marksObtained: 83,
-      percentage: 83,
-      submissionTime: '2:38 PM',
-      status: 'good',
-      examName: 'English Literature'
+      trend: dashboardData?.ongoingExams > 0 ? 'Live now' : 'No active',
+      subtitle: dashboardData?.ongoingExams > 0 ? 'Monitor progress' : 'All completed'
     }
   ];
 
@@ -230,107 +301,136 @@ const TeacherDashboard = ({ user, onLogout }) => {
       <main className="main-content">
         {activeTab === 'Dashboard' && (
           <>
+            {/* Loading State */}
+            {loading && (
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading dashboard data...</p>
+              </div>
+            )}
+
             {/* Stats Cards */}
-            <div className="stats-grid">
-              {stats.map((stat, index) => (
-                <div
-                  key={index}
-                  className="stat-card"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
+            {!loading && (
+              <div className="stats-grid">
+                {stats.map((stat, index) => (
                   <div
-                    className="stat-card-inner"
-                    style={{ background: stat.gradient }}
+                    key={index}
+                    className="stat-card"
+                    style={{ animationDelay: `${index * 0.1}s` }}
                   >
-                    <div className="stat-card-header">
-                      <div className="stat-icon">{stat.icon}</div>
-                      <div className="stat-trend">{stat.trend}</div>
+                    <div
+                      className="stat-card-inner"
+                      style={{ background: stat.gradient }}
+                    >
+                      <div className="stat-card-header">
+                        <div className="stat-icon">{stat.icon}</div>
+                        <div className="stat-trend">{stat.trend}</div>
+                      </div>
+                      <div className="stat-content">
+                        <h3 className="stat-value">{stat.value}</h3>
+                        <p className="stat-title">{stat.title}</p>
+                        <p className="stat-subtitle">{stat.subtitle}</p>
+                      </div>
+                      <div className="stat-card-glow"></div>
                     </div>
-                    <div className="stat-content">
-                      <h3 className="stat-value">{stat.value}</h3>
-                      <p className="stat-title">{stat.title}</p>
-                      <p className="stat-subtitle">{stat.subtitle}</p>
-                    </div>
-                    <div className="stat-card-glow"></div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Latest Submissions Section */}
-            <div className="submissions-section">
-              <div className="section-header">
-                <div>
-                  <h2 className="section-title">Latest Submissions</h2>
-                  <p className="section-subtitle">Recent exam submissions from your students</p>
+            {!loading && (
+              <div className="submissions-section">
+                <div className="section-header">
+                  <div>
+                    <h2 className="section-title">Latest Submissions</h2>
+                    <p className="section-subtitle">
+                      {recentSubmissions.length > 0 
+                        ? 'Recent exam submissions from your students' 
+                        : 'No submissions yet'}
+                    </p>
+                  </div>
+                  {recentSubmissions.length > 0 && (
+                    <button className="view-all-btn">
+                      View All
+                      <CheckCircle size={18} />
+                    </button>
+                  )}
                 </div>
-                <button className="view-all-btn">
-                  View All
-                  <CheckCircle size={18} />
-                </button>
+                
+                {recentSubmissions.length > 0 ? (
+                  <div className="table-container">
+                    <table className="submissions-table">
+                      <thead>
+                        <tr>
+                          <th>Student Name</th>
+                          <th>Exam Name</th>
+                          <th>Total Marks</th>
+                          <th>Marks Obtained</th>
+                          <th>Performance</th>
+                          <th>Status</th>
+                          <th>Submitted At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentSubmissions.map((submission, index) => (
+                          <tr key={submission.id} className="table-row" style={{ animationDelay: `${index * 0.1}s` }}>
+                            <td className="name-cell">
+                              <div className="student-info">
+                                <div className="student-avatar">
+                                  {submission.fullName.split(' ').map(n => n[0]).join('')}
+                                </div>
+                                <span>{submission.fullName}</span>
+                              </div>
+                            </td>
+                            <td className="exam-name-cell">{submission.examName}</td>
+                            <td className="marks-cell">{submission.totalMarks}</td>
+                            <td className="marks-obtained-cell">{submission.marksObtained}</td>
+                            <td>
+                              <div className="performance-bar-container">
+                                <div
+                                  className="performance-bar"
+                                  style={{
+                                    width: `${submission.percentage}%`,
+                                    background: submission.percentage >= 90
+                                      ? 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)'
+                                      : submission.percentage >= 75
+                                      ? 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)'
+                                      : 'linear-gradient(90deg, #fa709a 0%, #fee140 100%)'
+                                  }}
+                                >
+                                  <span className="performance-text">{submission.percentage.toFixed(1)}%</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`status-badge status-${submission.status}`}>
+                                {submission.status === 'excellent' && <Award size={14} />}
+                                {submission.status === 'good' && <CheckCircle size={14} />}
+                                {submission.status === 'average' && <AlertCircle size={14} />}
+                                {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
+                              </span>
+                            </td>
+                            <td className="time-cell">
+                              <Clock size={14} />
+                              {submission.submissionTime}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  !loading && (
+                    <div className="no-data-message">
+                      <BookOpen size={48} />
+                      <h3>No Submissions Yet</h3>
+                      <p>Student submissions will appear here once they start taking your exams.</p>
+                    </div>
+                  )
+                )}
               </div>
-              <div className="table-container">
-                <table className="submissions-table">
-                  <thead>
-                    <tr>
-                      <th>Student Name</th>
-                      <th>Exam Name</th>
-                      <th>Total Marks</th>
-                      <th>Marks Obtained</th>
-                      <th>Performance</th>
-                      <th>Status</th>
-                      <th>Submitted At</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {submissions.map((submission, index) => (
-                      <tr key={submission.id} className="table-row" style={{ animationDelay: `${index * 0.1}s` }}>
-                        <td className="name-cell">
-                          <div className="student-info">
-                            <div className="student-avatar">
-                              {submission.fullName.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <span>{submission.fullName}</span>
-                          </div>
-                        </td>
-                        <td className="exam-name-cell">{submission.examName}</td>
-                        <td className="marks-cell">{submission.totalMarks}</td>
-                        <td className="marks-obtained-cell">{submission.marksObtained}</td>
-                        <td>
-                          <div className="performance-bar-container">
-                            <div
-                              className="performance-bar"
-                              style={{
-                                width: `${submission.percentage}%`,
-                                background: submission.percentage >= 90
-                                  ? 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)'
-                                  : submission.percentage >= 75
-                                  ? 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)'
-                                  : 'linear-gradient(90deg, #fa709a 0%, #fee140 100%)'
-                              }}
-                            >
-                              <span className="performance-text">{submission.percentage}%</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`status-badge status-${submission.status}`}>
-                            {submission.status === 'excellent' && <Award size={14} />}
-                            {submission.status === 'good' && <CheckCircle size={14} />}
-                            {submission.status === 'average' && <AlertCircle size={14} />}
-                            {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="time-cell">
-                          <Clock size={14} />
-                          {submission.submissionTime}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            )}
           </>
         )}
 
@@ -360,6 +460,8 @@ const TeacherDashboard = ({ user, onLogout }) => {
               <ExamForm 
                 onExamCreated={(exam) => {
                   setSelectedExam(exam);
+                  // Refresh dashboard data when new exam is created
+                  fetchDashboardData();
                 }}
               />
             )}
@@ -399,11 +501,11 @@ const TeacherDashboard = ({ user, onLogout }) => {
               <div className="monitoring-stats">
                 <div className="monitoring-stat">
                   <Activity size={24} />
-                  <span>Live Sessions: 3</span>
+                  <span>Live Sessions: {dashboardData?.ongoingExams || 0}</span>
                 </div>
                 <div className="monitoring-stat">
                   <Users size={24} />
-                  <span>Active Students: 24</span>
+                  <span>Total Students: {dashboardData?.totalStudents || 0}</span>
                 </div>
               </div>
             </div>
