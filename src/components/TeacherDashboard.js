@@ -39,8 +39,10 @@ const TeacherDashboard = ({ user, onLogout }) => {
     try {
       setLoading(true);
       const token = await auth.currentUser.getIdToken();
+      console.log('🔐 Token obtained:', token ? 'Yes' : 'No');
       
       // Fetch teacher's exams
+      console.log('📡 Fetching exams from:', '/api/teacher/exams');
       const examsResponse = await fetch('/api/teacher/exams', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -48,16 +50,39 @@ const TeacherDashboard = ({ user, onLogout }) => {
         }
       });
       
-      if (!examsResponse.ok) throw new Error('Failed to fetch exams');
+      console.log('📊 Exams response status:', examsResponse.status);
+      console.log('📊 Exams response ok:', examsResponse.ok);
+      
+      // Check if response is HTML instead of JSON
+      const contentType = examsResponse.headers.get('content-type');
+      console.log('📊 Content-Type:', contentType);
+      
+      if (!examsResponse.ok) {
+        // Try to read as text to see what error we're getting
+        const errorText = await examsResponse.text();
+        console.error('❌ Exams API Error:', errorText.substring(0, 500));
+        throw new Error(`Failed to fetch exams: ${examsResponse.status}`);
+      }
+      
+      // Verify it's JSON before parsing
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await examsResponse.text();
+        console.error('❌ Non-JSON response:', text.substring(0, 500));
+        throw new Error('Server returned non-JSON response');
+      }
+      
       const exams = await examsResponse.json();
+      console.log('✅ Exams fetched successfully:', exams.length);
+      console.log('📝 Exam titles:', exams.map(exam => exam.title));
 
       // Calculate dashboard statistics
       const now = new Date();
       const totalExams = exams.length;
       
-      const upcomingExams = exams.filter(exam => 
-        new Date(exam.start_time) > now
-      ).length;
+      const upcomingExams = exams.filter(exam => {
+        const startTime = new Date(exam.start_time);
+        return startTime > now;
+      }).length;
       
       const ongoingExams = exams.filter(exam => {
         const startTime = new Date(exam.start_time);
@@ -65,12 +90,19 @@ const TeacherDashboard = ({ user, onLogout }) => {
         return now >= startTime && now <= endTime;
       }).length;
 
-      // Fetch all exam attempts to get student count and recent submissions
+      console.log('📈 Stats calculated:', {
+        totalExams,
+        upcomingExams,
+        ongoingExams
+      });
+
+      // Fetch results for each exam to get student data
       let allStudents = new Set();
       let allSubmissions = [];
 
       for (const exam of exams) {
         try {
+          console.log(`📡 Fetching results for exam: ${exam.id} - ${exam.title}`);
           const resultsResponse = await fetch(`/api/teacher/exams/${exam.id}/results`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -78,47 +110,55 @@ const TeacherDashboard = ({ user, onLogout }) => {
             }
           });
 
+          console.log(`📊 Results response for ${exam.id}:`, resultsResponse.status);
+
           if (resultsResponse.ok) {
-            const results = await resultsResponse.json();
-            
-            results.forEach(attempt => {
-              // Add student to unique set
-              if (attempt.student) {
-                allStudents.add(attempt.student.id);
-              }
+            const resultsContentType = resultsResponse.headers.get('content-type');
+            if (resultsContentType && resultsContentType.includes('application/json')) {
+              const results = await resultsResponse.json();
+              console.log(`✅ Results for ${exam.id}:`, results.length);
+              
+              results.forEach(attempt => {
+                if (attempt.student) {
+                  allStudents.add(attempt.student.id);
+                }
 
-              // Prepare submission data
-              if (attempt.end_time) {
-                const totalMarks = attempt.answers?.reduce((sum, answer) => 
-                  sum + (answer.question?.marks || 0), 0) || exam.total_marks || 100;
-                
-                const marksObtained = attempt.answers?.reduce((sum, answer) => 
-                  sum + (answer.marks_obtained || 0), 0) || attempt.score || 0;
-                
-                const percentage = totalMarks > 0 ? (marksObtained / totalMarks) * 100 : 0;
+                if (attempt.end_time) {
+                  const totalMarks = attempt.answers?.reduce((sum, answer) => 
+                    sum + (answer.question?.marks || 0), 0) || exam.total_marks || 100;
+                  
+                  const marksObtained = attempt.answers?.reduce((sum, answer) => 
+                    sum + (answer.marks_obtained || 0), 0) || attempt.score || 0;
+                  
+                  const percentage = totalMarks > 0 ? (marksObtained / totalMarks) * 100 : 0;
 
-                let status = 'average';
-                if (percentage >= 90) status = 'excellent';
-                else if (percentage >= 75) status = 'good';
+                  let status = 'average';
+                  if (percentage >= 90) status = 'excellent';
+                  else if (percentage >= 75) status = 'good';
 
-                allSubmissions.push({
-                  id: attempt.id,
-                  fullName: attempt.student?.name || 'Unknown Student',
-                  totalMarks: totalMarks,
-                  marksObtained: marksObtained,
-                  percentage: percentage,
-                  submissionTime: new Date(attempt.end_time).toLocaleTimeString([], { 
-                    hour: '2-digit', minute: '2-digit' 
-                  }),
-                  status: status,
-                  examName: exam.title,
-                  student: attempt.student
-                });
-              }
-            });
+                  allSubmissions.push({
+                    id: attempt.id,
+                    fullName: attempt.student?.name || 'Unknown Student',
+                    totalMarks: totalMarks,
+                    marksObtained: marksObtained,
+                    percentage: percentage,
+                    submissionTime: new Date(attempt.end_time).toLocaleTimeString([], { 
+                      hour: '2-digit', minute: '2-digit' 
+                    }),
+                    status: status,
+                    examName: exam.title,
+                    student: attempt.student
+                  });
+                }
+              });
+            } else {
+              console.warn(`⚠️ Non-JSON response for exam ${exam.id} results`);
+            }
+          } else {
+            console.warn(`⚠️ Results not available for exam ${exam.id}:`, resultsResponse.status);
           }
         } catch (error) {
-          console.error(`Error fetching results for exam ${exam.id}:`, error);
+          console.error(`❌ Error fetching results for exam ${exam.id}:`, error);
         }
       }
 
@@ -127,23 +167,29 @@ const TeacherDashboard = ({ user, onLogout }) => {
         .sort((a, b) => new Date(b.submissionTime) - new Date(a.submissionTime))
         .slice(0, 5);
 
-      setDashboardData({
+      const dashboardStats = {
         totalExams,
         upcomingExams,
         totalStudents: allStudents.size,
         ongoingExams
-      });
+      };
 
+      console.log('🎯 Final dashboard stats:', dashboardStats);
+      console.log('📨 Recent submissions:', sortedSubmissions.length);
+
+      setDashboardData(dashboardStats);
       setRecentSubmissions(sortedSubmissions);
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('❌ Error fetching dashboard data:', error);
       // Fallback to dummy data if API fails
-      setDashboardData({
+      const fallbackData = {
         totalExams: 0,
         upcomingExams: 0,
         totalStudents: 0,
         ongoingExams: 0
-      });
+      };
+      console.log('🔄 Using fallback data:', fallbackData);
+      setDashboardData(fallbackData);
       setRecentSubmissions([]);
     } finally {
       setLoading(false);
