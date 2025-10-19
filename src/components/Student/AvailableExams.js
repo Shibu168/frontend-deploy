@@ -7,12 +7,10 @@ const AvailableExams = ({ onExamSelect }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('public');
 
-  // ✅ Always use env variable
   const API_BASE = process.env.REACT_APP_API_BASE;
 
   useEffect(() => {
     fetchAvailableExams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAvailableExams = async () => {
@@ -39,7 +37,6 @@ const AvailableExams = ({ onExamSelect }) => {
     }
   };
 
-  // AvailableExams.js - Simple fix
   const handleExamSelect = async (exam) => {
     if (exam.visibility === 'public' || exam.visibility === 'shared') {
       try {
@@ -53,7 +50,6 @@ const AvailableExams = ({ onExamSelect }) => {
 
         if (response.ok) {
           const examData = await response.json();
-          // SIMPLE FIX: Pass examData.exam instead of examData
           onExamSelect(examData.exam);
         } else {
           const errorData = await response.json();
@@ -68,67 +64,124 @@ const AvailableExams = ({ onExamSelect }) => {
     }
   };
 
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
+
   if (loading) {
-    return <div className="loading">Loading available exams...</div>;
+    return (
+      <div className="available-exams">
+        <div className="loading">
+          <div className="loading-spinner"></div>
+          <p>Loading available exams...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="error">{error}</div>;
+    return (
+      <div className="available-exams">
+        <div className="error">
+          <div className="error-icon">⚠️</div>
+          <p>{error}</p>
+          <button onClick={fetchAvailableExams} className="retry-btn">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const totalExams = exams.public.length + exams.shared.length;
 
   return (
     <div className="available-exams">
-      <h2>Available Exams</h2>
-      
+      <div className="header-section">
+        <h2>Available Exams</h2>
+        <p className="subtitle">Choose an exam to get started</p>
+      </div>
+
       {totalExams === 0 ? (
         <div className="no-exams">
-          <p>No exams available at the moment.</p>
-          <p>If you have a private exam link, ask your teacher to share it with you.</p>
+          <div className="empty-icon">📚</div>
+          <h3>No Exams Available</h3>
+          <p>There are no exams available at the moment.</p>
+          <p className="hint">If you have a private exam link, ask your teacher to share it with you.</p>
         </div>
       ) : (
         <>
-          {/* Tabs for Public and Shared Exams */}
           <div className="exams-tabs">
-            <button 
+            <button
               className={`tab-button ${activeTab === 'public' ? 'active' : ''}`}
               onClick={() => setActiveTab('public')}
             >
-              Public Exams ({exams.public.length})
+              <span className="tab-icon">🌐</span>
+              <span className="tab-text">Public Exams</span>
+              <span className="tab-count">{exams.public.length}</span>
             </button>
-            <button 
+            <button
               className={`tab-button ${activeTab === 'shared' ? 'active' : ''}`}
               onClick={() => setActiveTab('shared')}
             >
-              Shared with Me ({exams.shared.length})
+              <span className="tab-icon">👥</span>
+              <span className="tab-text">Shared with Me</span>
+              <span className="tab-count">{exams.shared.length}</span>
             </button>
           </div>
 
-          {/* Public Exams */}
           {activeTab === 'public' && (
             <div className="exam-grid">
               {exams.public.length === 0 ? (
                 <div className="no-exams">
-                  <p>No public exams available.</p>
+                  <div className="empty-icon">🔓</div>
+                  <h3>No Public Exams</h3>
+                  <p>There are no public exams available right now.</p>
                 </div>
               ) : (
-                exams.public.map(exam => (
-                  <div key={exam.id} className="exam-card">
-                    <h3>{exam.title}</h3>
-                    <p className="exam-description">{exam.description}</p>
-                    <div className="exam-meta">
-                      <span>⏱️ {exam.duration_minutes} minutes</span>
-                      <span>📅 {new Date(exam.start_time).toLocaleDateString()}</span>
+                exams.public.map((exam, index) => (
+                  <div
+                    key={exam.id}
+                    className="exam-card"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="card-header">
+                      <h3>{exam.title}</h3>
                       <span className={`visibility-badge ${exam.visibility}`}>
-                        {exam.visibility}
+                        {exam.visibility === 'public' ? '🌐' : '🔒'} {exam.visibility}
                       </span>
                     </div>
-                    <button 
+
+                    <p className="exam-description">{exam.description}</p>
+
+                    <div className="exam-meta">
+                      <div className="meta-item">
+                        <span className="meta-icon">⏱️</span>
+                        <span className="meta-text">{exam.duration_minutes} min</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">📅</span>
+                        <span className="meta-text">{formatDate(exam.start_time)}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">🕐</span>
+                        <span className="meta-text">{formatTime(exam.start_time)}</span>
+                      </div>
+                    </div>
+
+                    <button
                       onClick={() => handleExamSelect(exam)}
                       className="start-exam-btn"
                     >
-                      Start Exam
+                      <span>Start Exam</span>
+                      <span className="btn-arrow">→</span>
                     </button>
                   </div>
                 ))
@@ -136,32 +189,57 @@ const AvailableExams = ({ onExamSelect }) => {
             </div>
           )}
 
-          {/* Shared Exams */}
           {activeTab === 'shared' && (
             <div className="exam-grid">
               {exams.shared.length === 0 ? (
                 <div className="no-exams">
-                  <p>No exams have been shared with you.</p>
-                  <p>Your teacher can share exams specifically with your email address.</p>
+                  <div className="empty-icon">📧</div>
+                  <h3>No Shared Exams</h3>
+                  <p>No exams have been shared with you yet.</p>
+                  <p className="hint">Your teacher can share exams specifically with your email address.</p>
                 </div>
               ) : (
-                exams.shared.map(exam => (
-                  <div key={exam.id} className="exam-card shared-exam">
-                    <h3>{exam.title}</h3>
+                exams.shared.map((exam, index) => (
+                  <div
+                    key={exam.id}
+                    className="exam-card shared-exam"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="card-header">
+                      <h3>{exam.title}</h3>
+                      <span className="shared-badge">
+                        👥 Shared
+                      </span>
+                    </div>
+
                     <p className="exam-description">{exam.description}</p>
-                    <div className="exam-meta">
-                      <span>⏱️ {exam.duration_minutes} minutes</span>
-                      <span>📅 {new Date(exam.start_time).toLocaleDateString()}</span>
-                      <span className="shared-badge">Shared with you</span>
-                    </div>
+
                     <div className="teacher-info">
-                      <small>By: {exam.creator?.name || 'Teacher'}</small>
+                      <span className="teacher-icon">👨‍🏫</span>
+                      <span>By: {exam.creator?.name || 'Teacher'}</span>
                     </div>
-                    <button 
+
+                    <div className="exam-meta">
+                      <div className="meta-item">
+                        <span className="meta-icon">⏱️</span>
+                        <span className="meta-text">{exam.duration_minutes} min</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">📅</span>
+                        <span className="meta-text">{formatDate(exam.start_time)}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">🕐</span>
+                        <span className="meta-text">{formatTime(exam.start_time)}</span>
+                      </div>
+                    </div>
+
+                    <button
                       onClick={() => handleExamSelect(exam)}
                       className="start-exam-btn"
                     >
-                      Start Exam
+                      <span>Start Exam</span>
+                      <span className="btn-arrow">→</span>
                     </button>
                   </div>
                 ))
