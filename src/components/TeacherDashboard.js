@@ -39,157 +39,56 @@ const TeacherDashboard = ({ user, onLogout }) => {
     try {
       setLoading(true);
       const token = await auth.currentUser.getIdToken();
-      console.log('🔐 Token obtained:', token ? 'Yes' : 'No');
       
-      // Fetch teacher's exams
-      console.log('📡 Fetching exams from:', '/api/teacher/exams');
-      const examsResponse = await fetch('/api/teacher/exams', {
+      console.log('📡 Fetching dashboard data from API...');
+      
+      const response = await fetch('/api/teacher/dashboard', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
-      console.log('📊 Exams response status:', examsResponse.status);
-      console.log('📊 Exams response ok:', examsResponse.ok);
+      console.log('📊 Dashboard response status:', response.status);
       
-      // Check if response is HTML instead of JSON
-      const contentType = examsResponse.headers.get('content-type');
-      console.log('📊 Content-Type:', contentType);
-      
-      if (!examsResponse.ok) {
-        // Try to read as text to see what error we're getting
-        const errorText = await examsResponse.text();
-        console.error('❌ Exams API Error:', errorText.substring(0, 500));
-        throw new Error(`Failed to fetch exams: ${examsResponse.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      // Verify it's JSON before parsing
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await examsResponse.text();
-        console.error('❌ Non-JSON response:', text.substring(0, 500));
-        throw new Error('Server returned non-JSON response');
+      const result = await response.json();
+      console.log('✅ Dashboard data received:', result);
+      
+      if (result.success) {
+        // Set dashboard data from the API response
+        setDashboardData({
+          totalExams: result.data.totalExams,
+          upcomingExams: result.data.upcomingExams,
+          totalStudents: result.data.totalStudents,
+          ongoingExams: result.data.ongoingExams
+        });
+        
+        // Set recent submissions - the API already returns them in the correct format
+        setRecentSubmissions(result.data.recentSubmissions || []);
+        
+        console.log('🎯 Dashboard updated with:', {
+          exams: result.data.totalExams,
+          upcoming: result.data.upcomingExams,
+          students: result.data.totalStudents,
+          ongoing: result.data.ongoingExams,
+          submissions: result.data.recentSubmissions.length
+        });
+      } else {
+        throw new Error(result.error || 'Failed to fetch dashboard data');
       }
-      
-      const exams = await examsResponse.json();
-      console.log('✅ Exams fetched successfully:', exams.length);
-      console.log('📝 Exam titles:', exams.map(exam => exam.title));
-
-      // Calculate dashboard statistics
-      const now = new Date();
-      const totalExams = exams.length;
-      
-      const upcomingExams = exams.filter(exam => {
-        const startTime = new Date(exam.start_time);
-        return startTime > now;
-      }).length;
-      
-      const ongoingExams = exams.filter(exam => {
-        const startTime = new Date(exam.start_time);
-        const endTime = new Date(exam.end_time);
-        return now >= startTime && now <= endTime;
-      }).length;
-
-      console.log('📈 Stats calculated:', {
-        totalExams,
-        upcomingExams,
-        ongoingExams
-      });
-
-      // Fetch results for each exam to get student data
-      let allStudents = new Set();
-      let allSubmissions = [];
-
-      for (const exam of exams) {
-        try {
-          console.log(`📡 Fetching results for exam: ${exam.id} - ${exam.title}`);
-          const resultsResponse = await fetch(`/api/teacher/exams/${exam.id}/results`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-
-          console.log(`📊 Results response for ${exam.id}:`, resultsResponse.status);
-
-          if (resultsResponse.ok) {
-            const resultsContentType = resultsResponse.headers.get('content-type');
-            if (resultsContentType && resultsContentType.includes('application/json')) {
-              const results = await resultsResponse.json();
-              console.log(`✅ Results for ${exam.id}:`, results.length);
-              
-              results.forEach(attempt => {
-                if (attempt.student) {
-                  allStudents.add(attempt.student.id);
-                }
-
-                if (attempt.end_time) {
-                  const totalMarks = attempt.answers?.reduce((sum, answer) => 
-                    sum + (answer.question?.marks || 0), 0) || exam.total_marks || 100;
-                  
-                  const marksObtained = attempt.answers?.reduce((sum, answer) => 
-                    sum + (answer.marks_obtained || 0), 0) || attempt.score || 0;
-                  
-                  const percentage = totalMarks > 0 ? (marksObtained / totalMarks) * 100 : 0;
-
-                  let status = 'average';
-                  if (percentage >= 90) status = 'excellent';
-                  else if (percentage >= 75) status = 'good';
-
-                  allSubmissions.push({
-                    id: attempt.id,
-                    fullName: attempt.student?.name || 'Unknown Student',
-                    totalMarks: totalMarks,
-                    marksObtained: marksObtained,
-                    percentage: percentage,
-                    submissionTime: new Date(attempt.end_time).toLocaleTimeString([], { 
-                      hour: '2-digit', minute: '2-digit' 
-                    }),
-                    status: status,
-                    examName: exam.title,
-                    student: attempt.student
-                  });
-                }
-              });
-            } else {
-              console.warn(`⚠️ Non-JSON response for exam ${exam.id} results`);
-            }
-          } else {
-            console.warn(`⚠️ Results not available for exam ${exam.id}:`, resultsResponse.status);
-          }
-        } catch (error) {
-          console.error(`❌ Error fetching results for exam ${exam.id}:`, error);
-        }
-      }
-
-      // Sort submissions by submission time (most recent first) and take latest 5
-      const sortedSubmissions = allSubmissions
-        .sort((a, b) => new Date(b.submissionTime) - new Date(a.submissionTime))
-        .slice(0, 5);
-
-      const dashboardStats = {
-        totalExams,
-        upcomingExams,
-        totalStudents: allStudents.size,
-        ongoingExams
-      };
-
-      console.log('🎯 Final dashboard stats:', dashboardStats);
-      console.log('📨 Recent submissions:', sortedSubmissions.length);
-
-      setDashboardData(dashboardStats);
-      setRecentSubmissions(sortedSubmissions);
     } catch (error) {
       console.error('❌ Error fetching dashboard data:', error);
-      // Fallback to dummy data if API fails
-      const fallbackData = {
+      // Fallback data
+      setDashboardData({
         totalExams: 0,
         upcomingExams: 0,
         totalStudents: 0,
         ongoingExams: 0
-      };
-      console.log('🔄 Using fallback data:', fallbackData);
-      setDashboardData(fallbackData);
+      });
       setRecentSubmissions([]);
     } finally {
       setLoading(false);
