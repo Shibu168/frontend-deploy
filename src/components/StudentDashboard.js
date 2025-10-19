@@ -16,6 +16,11 @@ const StudentDashboard = ({ user, onLogout }) => {
   const [activeView, setActiveView] = useState('dashboard');
   const [showSplash, setShowSplash] = useState(true);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [recentSubmissions, setRecentSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const API_BASE = process.env.REACT_APP_BACKEND_URL || 'https://backend-deploy-pg2s.onrender.com';
 
   // Show splash screen on component mount
   useEffect(() => {
@@ -38,6 +43,62 @@ const StudentDashboard = ({ user, onLogout }) => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state, navigate]);
+
+  // Fetch dashboard data when activeView is dashboard
+  useEffect(() => {
+    if (activeView === 'dashboard') {
+      fetchDashboardData();
+    }
+  }, [activeView]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = await auth.currentUser.getIdToken();
+      
+      console.log('📡 Fetching student dashboard data...');
+      
+      const response = await fetch(`${API_BASE}/api/student/dashboard`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📊 Dashboard response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Student dashboard data received:', result);
+      
+      if (result.success) {
+        setDashboardData({
+          totalExams: result.data.totalExams || 0,
+          upcomingExams: result.data.upcomingExams || 0,
+          averageScore: result.data.averageScore || 0,
+          latestScore: result.data.latestScore || 0
+        });
+        setRecentSubmissions(result.data.recentSubmissions || []);
+      } else {
+        throw new Error(result.error || 'Failed to fetch dashboard data');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching student dashboard data:', error);
+      // Fallback to sample data if API fails
+      setDashboardData({
+        totalExams: 0,
+        upcomingExams: 0,
+        averageScore: 0,
+        latestScore: 0
+      });
+      setRecentSubmissions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -65,6 +126,8 @@ const StudentDashboard = ({ user, onLogout }) => {
   const handleExamComplete = () => {
     setSelectedExam(null);
     setActiveView('results');
+    // Refresh dashboard data after exam completion
+    fetchDashboardData();
   };
 
   const handleBackToDashboard = () => {
@@ -80,40 +143,6 @@ const StudentDashboard = ({ user, onLogout }) => {
   const getUserPhotoURL = () => {
     return user?.photoURL || null;
   };
-
-  // Sample data for stats and submissions
-  const recentSubmissions = [
-    {
-      id: 1,
-      teacherName: 'Prof. Smith',
-      examName: 'Mathematics Final',
-      totalMarks: 100,
-      marksObtained: 92,
-      percentage: 92,
-      status: 'excellent',
-      submissionTime: '2 hours ago'
-    },
-    {
-      id: 2,
-      teacherName: 'Dr. Johnson',
-      examName: 'Physics Quiz',
-      totalMarks: 50,
-      marksObtained: 41,
-      percentage: 82,
-      status: 'good',
-      submissionTime: '1 day ago'
-    },
-    {
-      id: 3,
-      teacherName: 'Ms. Williams',
-      examName: 'Chemistry Test',
-      totalMarks: 75,
-      marksObtained: 53,
-      percentage: 70.7,
-      status: 'average',
-      submissionTime: '3 days ago'
-    }
-  ];
 
   // If we have a selected exam, show the exam interface
   if (selectedExam) {
@@ -222,149 +251,179 @@ const StudentDashboard = ({ user, onLogout }) => {
         {/* Dashboard View */}
         {activeView === 'dashboard' && (
           <>
-            <div className="stats-grid">
-              <div className="stat-card" style={{ animationDelay: '0.1s' }}>
-                <div
-                  className="stat-card-inner"
-                  style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-                >
-                  <div className="stat-card-header">
-                    <BookOpen size={40} className="stat-icon" />
-                    <span className="stat-trend">All Time</span>
+            {/* Loading State */}
+            {loading && (
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading dashboard data...</p>
+              </div>
+            )}
+
+            {/* Stats Cards */}
+            {!loading && (
+              <div className="stats-grid">
+                <div className="stat-card" style={{ animationDelay: '0.1s' }}>
+                  <div
+                    className="stat-card-inner"
+                    style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                  >
+                    <div className="stat-card-header">
+                      <BookOpen size={40} className="stat-icon" />
+                      <span className="stat-trend">Completed</span>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">{dashboardData?.totalExams || 0}</div>
+                      <div className="stat-title">Exams Completed</div>
+                      <div className="stat-subtitle">Total taken</div>
+                    </div>
+                    <div className="stat-card-glow"></div>
                   </div>
-                  <div className="stat-content">
-                    <div className="stat-value">12</div>
-                    <div className="stat-title">Total Exams</div>
-                    <div className="stat-subtitle">Completed</div>
+                </div>
+
+                <div className="stat-card" style={{ animationDelay: '0.2s' }}>
+                  <div
+                    className="stat-card-inner"
+                    style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}
+                  >
+                    <div className="stat-card-header">
+                      <Calendar size={40} className="stat-icon" />
+                      <span className="stat-trend">Future</span>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">{dashboardData?.upcomingExams || 0}</div>
+                      <div className="stat-title">Upcoming Exams</div>
+                      <div className="stat-subtitle">Future schedule</div>
+                    </div>
+                    <div className="stat-card-glow"></div>
                   </div>
-                  <div className="stat-card-glow"></div>
+                </div>
+
+                <div className="stat-card" style={{ animationDelay: '0.3s' }}>
+                  <div
+                    className="stat-card-inner"
+                    style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}
+                  >
+                    <div className="stat-card-header">
+                      <Award size={40} className="stat-icon" />
+                      <span className="stat-trend">
+                        <TrendingUp size={14} /> Average
+                      </span>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">{dashboardData?.averageScore || 0}%</div>
+                      <div className="stat-title">Average Score</div>
+                      <div className="stat-subtitle">Overall performance</div>
+                    </div>
+                    <div className="stat-card-glow"></div>
+                  </div>
+                </div>
+
+                <div className="stat-card" style={{ animationDelay: '0.4s' }}>
+                  <div
+                    className="stat-card-inner"
+                    style={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}
+                  >
+                    <div className="stat-card-header">
+                      <CheckCircle size={40} className="stat-icon" />
+                      <span className="stat-trend">Latest</span>
+                    </div>
+                    <div className="stat-content">
+                      <div className="stat-value">{dashboardData?.latestScore || 0}%</div>
+                      <div className="stat-title">Latest Result</div>
+                      <div className="stat-subtitle">Most recent exam</div>
+                    </div>
+                    <div className="stat-card-glow"></div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="stat-card" style={{ animationDelay: '0.2s' }}>
-                <div
-                  className="stat-card-inner"
-                  style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}
-                >
-                  <div className="stat-card-header">
-                    <Calendar size={40} className="stat-icon" />
-                    <span className="stat-trend">This Week</span>
+            {/* Recent Submissions Section */}
+            {!loading && (
+              <div className="submissions-section">
+                <div className="section-header">
+                  <div>
+                    <h2 className="section-title">Latest Submissions</h2>
+                    <p className="section-subtitle">
+                      {recentSubmissions.length > 0 
+                        ? 'Your most recent exam results' 
+                        : 'No submissions yet'}
+                    </p>
                   </div>
-                  <div className="stat-content">
-                    <div className="stat-value">3</div>
-                    <div className="stat-title">Upcoming Exams</div>
-                    <div className="stat-subtitle">Scheduled</div>
-                  </div>
-                  <div className="stat-card-glow"></div>
+                  {recentSubmissions.length > 0 && (
+                    <button className="view-all-btn" onClick={() => setActiveView('results')}>
+                      View All Results
+                      <Award size={18} />
+                    </button>
+                  )}
                 </div>
-              </div>
 
-              <div className="stat-card" style={{ animationDelay: '0.3s' }}>
-                <div
-                  className="stat-card-inner"
-                  style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}
-                >
-                  <div className="stat-card-header">
-                    <Award size={40} className="stat-icon" />
-                    <span className="stat-trend">
-                      <TrendingUp size={14} /> +5%
-                    </span>
+                {recentSubmissions.length > 0 ? (
+                  <div className="table-container">
+                    <table className="submissions-table">
+                      <thead>
+                        <tr>
+                          <th>Teacher Name</th>
+                          <th>Exam Name</th>
+                          <th>Total Marks</th>
+                          <th>Marks Obtained</th>
+                          <th>Performance</th>
+                          <th>Status</th>
+                          <th>Submitted At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentSubmissions.map((submission, index) => (
+                          <tr key={submission.id} className="table-row" style={{ animationDelay: `${index * 0.1}s` }}>
+                            <td className="exam-name-cell">{submission.teacherName}</td>
+                            <td className="exam-name-cell">{submission.examName}</td>
+                            <td className="marks-cell">{submission.totalMarks}</td>
+                            <td className="marks-obtained-cell">{submission.marksObtained}</td>
+                            <td>
+                              <div className="performance-bar-container">
+                                <div
+                                  className="performance-bar"
+                                  style={{
+                                    width: `${submission.percentage}%`,
+                                    background: submission.percentage >= 90
+                                      ? 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)'
+                                      : submission.percentage >= 75
+                                      ? 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)'
+                                      : 'linear-gradient(90deg, #fa709a 0%, #fee140 100%)'
+                                  }}
+                                >
+                                  <span className="performance-text">{submission.percentage.toFixed(1)}%</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className={`status-badge status-${submission.status}`}>
+                                {submission.status === 'excellent' && <Award size={14} />}
+                                {submission.status === 'good' && <CheckCircle size={14} />}
+                                {submission.status === 'average' && <AlertCircle size={14} />}
+                                {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
+                              </span>
+                            </td>
+                            <td className="time-cell">
+                              <Clock size={14} />
+                              {submission.submissionTime}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="stat-content">
-                    <div className="stat-value">85%</div>
-                    <div className="stat-title">Average Score</div>
-                    <div className="stat-subtitle">Overall performance</div>
-                  </div>
-                  <div className="stat-card-glow"></div>
-                </div>
+                ) : (
+                  !loading && (
+                    <div className="no-data-message">
+                      <BookOpen size={48} />
+                      <h3>No Submissions Yet</h3>
+                      <p>Your exam results will appear here once you start taking exams.</p>
+                    </div>
+                  )
+                )}
               </div>
-
-              <div className="stat-card" style={{ animationDelay: '0.4s' }}>
-                <div
-                  className="stat-card-inner"
-                  style={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}
-                >
-                  <div className="stat-card-header">
-                    <CheckCircle size={40} className="stat-icon" />
-                    <span className="stat-trend">Latest</span>
-                  </div>
-                  <div className="stat-content">
-                    <div className="stat-value">92%</div>
-                    <div className="stat-title">Latest Result</div>
-                    <div className="stat-subtitle">Mathematics Final</div>
-                  </div>
-                  <div className="stat-card-glow"></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="submissions-section">
-              <div className="section-header">
-                <div>
-                  <h2 className="section-title">Latest Submissions</h2>
-                  <p className="section-subtitle">Your most recent exam results</p>
-                </div>
-                <button className="view-all-btn" onClick={() => setActiveView('results')}>
-                  View All Results
-                  <Award size={18} />
-                </button>
-              </div>
-
-              <div className="table-container">
-                <table className="submissions-table">
-                  <thead>
-                    <tr>
-                      <th>Teacher Name</th>
-                      <th>Exam Name</th>
-                      <th>Total Marks</th>
-                      <th>Marks Obtained</th>
-                      <th>Performance</th>
-                      <th>Status</th>
-                      <th>Submitted At</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentSubmissions.map((submission, index) => (
-                      <tr key={submission.id} className="table-row" style={{ animationDelay: `${index * 0.1}s` }}>
-                        <td className="exam-name-cell">{submission.teacherName}</td>
-                        <td className="exam-name-cell">{submission.examName}</td>
-                        <td className="marks-cell">{submission.totalMarks}</td>
-                        <td className="marks-obtained-cell">{submission.marksObtained}</td>
-                        <td>
-                          <div className="performance-bar-container">
-                            <div
-                              className="performance-bar"
-                              style={{
-                                width: `${submission.percentage}%`,
-                                background: submission.percentage >= 90
-                                  ? 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)'
-                                  : submission.percentage >= 75
-                                  ? 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)'
-                                  : 'linear-gradient(90deg, #fa709a 0%, #fee140 100%)'
-                              }}
-                            >
-                              <span className="performance-text">{submission.percentage.toFixed(1)}%</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`status-badge status-${submission.status}`}>
-                            {submission.status === 'excellent' && <Award size={14} />}
-                            {submission.status === 'good' && <CheckCircle size={14} />}
-                            {submission.status === 'average' && <AlertCircle size={14} />}
-                            {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="time-cell">
-                          <Clock size={14} />
-                          {submission.submissionTime}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            )}
           </>
         )}
 
@@ -411,8 +470,8 @@ const StudentDashboard = ({ user, onLogout }) => {
                 <h3>We're Here to Help</h3>
                 <p>Contact our support team for any questions or issues regarding your examinations.</p>
                 <div className="contact-info">
-                  <p>📧 support@examnest.com</p>
-                  <p>📞 +1 (555) 123-4567</p>
+                  <p>📧 examnest.app@gmail.com</p>
+                  <p>📞 +91 9508355782</p>
                   <p>🕒 Mon-Fri: 9:00 AM - 6:00 PM</p>
                 </div>
               </div>
