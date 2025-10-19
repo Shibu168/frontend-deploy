@@ -41,8 +41,8 @@ const TeacherDashboard = ({ user, onLogout }) => {
       const token = await auth.currentUser.getIdToken();
       
       console.log('📡 Fetching dashboard data from API...');
-      
-      const response = await fetch('/api/teacher/dashboard', {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API_BASE}/api/teacher/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
