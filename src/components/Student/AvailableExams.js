@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, RefreshCw, Calendar, Clock, Globe, Share2, ArrowRight, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import './AvailableExams.css';
 
 const AvailableExams = ({ onExamSelect }) => {
@@ -7,8 +6,6 @@ const AvailableExams = ({ onExamSelect }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('public');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('date');
 
   const API_BASE = process.env.REACT_APP_API_BASE;
 
@@ -69,84 +66,21 @@ const AvailableExams = ({ onExamSelect }) => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
   };
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const calculateEndTime = (startTime, durationMinutes) => {
-    const start = new Date(startTime);
-    const end = new Date(start.getTime() + durationMinutes * 60000);
-    return {
-      date: formatDate(end),
-      time: formatTime(end)
-    };
-  };
-
-  // Process and filter exams based on search and sort
-  const processedExams = useMemo(() => {
-    const currentExams = activeTab === 'public' ? exams.public : exams.shared;
-    
-    let filtered = currentExams.filter(exam =>
-      exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      exam.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Sort exams
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.title.localeCompare(b.title);
-        case 'duration':
-          return a.duration_minutes - b.duration_minutes;
-        case 'date':
-        default:
-          return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-      }
-    });
-
-    return filtered;
-  }, [exams, activeTab, searchQuery, sortBy]);
-
-  const publicExamsCount = exams.public.length;
-  const sharedExamsCount = exams.shared.length;
-  const totalExams = publicExamsCount + sharedExamsCount;
-
-  // Advanced loading component
   if (loading) {
     return (
-      <div className="available-exams-container">
-        <div className="exams-header">
-          <div className="header-content">
-            <h1 className="page-title">Available Exams</h1>
-            <p className="page-subtitle">Loading your exams...</p>
-          </div>
-        </div>
-        
-        <div className="loading-container">
-          <div className="loading-spinner">
-            <div className="spinner"></div>
-          </div>
-          <div className="loading-content">
-            <h3>Preparing Your Exams</h3>
-            <p>We're gathering all available exams for you. This will just take a moment.</p>
-            <div className="loading-progress">
-              <div className="progress-bar">
-                <div className="progress-fill"></div>
-              </div>
-            </div>
-          </div>
+      <div className="available-exams">
+        <div className="loading">
+          <div className="loading-spinner"></div>
+          <p>Loading available exams...</p>
         </div>
       </div>
     );
@@ -154,56 +88,33 @@ const AvailableExams = ({ onExamSelect }) => {
 
   if (error) {
     return (
-      <div className="available-exams-container">
-        <div className="error-container">
-          <div className="error-icon">
-            <AlertCircle size={48} />
-          </div>
-          <h3>Unable to Load Exams</h3>
+      <div className="available-exams">
+        <div className="error">
+          <div className="error-icon">⚠️</div>
           <p>{error}</p>
-          <button onClick={fetchAvailableExams} className="retry-button">
-            <RefreshCw size={16} />
-            Try Again
+          <button onClick={fetchAvailableExams} className="retry-btn">
+            Retry
           </button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="available-exams-container">
-      <div className="exams-header">
-        <div className="header-content">
-          <h1 className="page-title">Available Exams</h1>
-          <p className="page-subtitle">Choose an exam to get started</p>
-        </div>
+  const totalExams = exams.public.length + exams.shared.length;
 
-        <div className="exam-stats">
-          <div className="stat-card stat-public">
-            <Globe className="stat-icon" />
-            <div className="stat-content">
-              <span className="stat-number">{publicExamsCount}</span>
-              <span className="stat-label">Public Exams</span>
-            </div>
-          </div>
-          <div className="stat-card stat-shared">
-            <Share2 className="stat-icon" />
-            <div className="stat-content">
-              <span className="stat-number">{sharedExamsCount}</span>
-              <span className="stat-label">Shared with Me</span>
-            </div>
-          </div>
-        </div>
+  return (
+    <div className="available-exams">
+      <div className="header-section">
+        <h2>Available Exams</h2>
+        <p className="subtitle">Choose an exam to get started</p>
       </div>
 
       {totalExams === 0 ? (
         <div className="no-exams">
-          <div className="empty-state">
-            <div className="empty-icon">📚</div>
-            <h3>No Exams Available</h3>
-            <p>There are no exams available at the moment.</p>
-            <p className="hint">If you have a private exam link, ask your teacher to share it with you.</p>
-          </div>
+          <div className="empty-icon">📚</div>
+          <h3>No Exams Available</h3>
+          <p>There are no exams available at the moment.</p>
+          <p className="hint">If you have a private exam link, ask your teacher to share it with you.</p>
         </div>
       ) : (
         <>
@@ -212,141 +123,127 @@ const AvailableExams = ({ onExamSelect }) => {
               className={`tab-button ${activeTab === 'public' ? 'active' : ''}`}
               onClick={() => setActiveTab('public')}
             >
-              <Globe className="tab-icon" />
-              Public Exams
-              <span className="tab-badge">{publicExamsCount}</span>
+              <span className="tab-icon">🌐</span>
+              <span className="tab-text">Public Exams</span>
+              <span className="tab-count">{exams.public.length}</span>
             </button>
             <button
               className={`tab-button ${activeTab === 'shared' ? 'active' : ''}`}
               onClick={() => setActiveTab('shared')}
             >
-              <Share2 className="tab-icon" />
-              Shared with Me
-              <span className="tab-badge">{sharedExamsCount}</span>
+              <span className="tab-icon">👥</span>
+              <span className="tab-text">Shared with Me</span>
+              <span className="tab-count">{exams.shared.length}</span>
             </button>
           </div>
 
-          <div className="exams-controls">
-            <div className="search-container">
-              <Search className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search exams by title or description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-              />
-            </div>
-
-            <div className="controls-actions">
-              <div className="sort-container">
-                <label htmlFor="sort-select">Sort by:</label>
-                <select
-                  id="sort-select"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="sort-select"
-                >
-                  <option value="date">Date</option>
-                  <option value="name">Name</option>
-                  <option value="duration">Duration</option>
-                </select>
-              </div>
-              <button className="refresh-button" onClick={fetchAvailableExams}>
-                <RefreshCw className="refresh-icon" />
-              </button>
-            </div>
-          </div>
-
-          <div className="exams-grid">
-            {processedExams.map((exam, index) => {
-              const endTime = calculateEndTime(exam.start_time, exam.duration_minutes);
-              
-              return (
-                <div
-                  key={exam.id}
-                  className="exam-card"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <div className="exam-card-header">
-                    <h3 className="exam-title">{exam.title}</h3>
-                    {exam.visibility === 'shared' && exam.creator && (
-                      <div className="shared-badge">
-                        <Share2 size={14} />
-                        <span>by {exam.creator.name || 'Teacher'}</span>
-                      </div>
-                    )}
-                    {exam.visibility === 'public' && (
-                      <div className="visibility-badge">
-                        <Globe size={14} />
-                        <span>Public</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="exam-description">{exam.description}</p>
-
-                  <div className="exam-details">
-                    <div className="detail-row">
-                      <div className="detail-item">
-                        <Clock className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Duration</span>
-                          <span className="detail-value">{exam.duration_minutes} minutes</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="detail-row">
-                      <div className="detail-item">
-                        <Calendar className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">Start</span>
-                          <span className="detail-value">
-                            {formatDate(exam.start_time)} at {formatTime(exam.start_time)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="detail-row">
-                      <div className="detail-item">
-                        <Calendar className="detail-icon" />
-                        <div className="detail-content">
-                          <span className="detail-label">End</span>
-                          <span className="detail-value">
-                            {endTime.date} at {endTime.time}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleExamSelect(exam)}
-                    className="start-exam-button"
-                  >
-                    <span>Start Now</span>
-                    <ArrowRight className="button-icon" />
-                  </button>
+          {activeTab === 'public' && (
+            <div className="exam-grid">
+              {exams.public.length === 0 ? (
+                <div className="no-exams">
+                  <div className="empty-icon">🔓</div>
+                  <h3>No Public Exams</h3>
+                  <p>There are no public exams available right now.</p>
                 </div>
-              );
-            })}
-          </div>
+              ) : (
+                exams.public.map((exam, index) => (
+                  <div
+                    key={exam.id}
+                    className="exam-card"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="card-header">
+                      <h3>{exam.title}</h3>
+                      <span className={`visibility-badge ${exam.visibility}`}>
+                        {exam.visibility === 'public' ? '🌐' : '🔒'} {exam.visibility}
+                      </span>
+                    </div>
 
-          {processedExams.length === 0 && (
-            <div className="no-exams">
-              <div className="empty-state">
-                <div className="empty-icon">🔍</div>
-                <h3>No Exams Found</h3>
-                <p>No exams found matching your search criteria.</p>
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="clear-search-button"
-                >
-                  Clear Search
-                </button>
-              </div>
+                    <p className="exam-description">{exam.description}</p>
+
+                    <div className="exam-meta">
+                      <div className="meta-item">
+                        <span className="meta-icon">⏱️</span>
+                        <span className="meta-text">{exam.duration_minutes} min</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">📅</span>
+                        <span className="meta-text">{formatDate(exam.start_time)}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">🕐</span>
+                        <span className="meta-text">{formatTime(exam.start_time)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleExamSelect(exam)}
+                      className="start-exam-btn"
+                    >
+                      <span>Start Exam</span>
+                      <span className="btn-arrow">→</span>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === 'shared' && (
+            <div className="exam-grid">
+              {exams.shared.length === 0 ? (
+                <div className="no-exams">
+                  <div className="empty-icon">📧</div>
+                  <h3>No Shared Exams</h3>
+                  <p>No exams have been shared with you yet.</p>
+                  <p className="hint">Your teacher can share exams specifically with your email address.</p>
+                </div>
+              ) : (
+                exams.shared.map((exam, index) => (
+                  <div
+                    key={exam.id}
+                    className="exam-card shared-exam"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="card-header">
+                      <h3>{exam.title}</h3>
+                      <span className="shared-badge">
+                        👥 Shared
+                      </span>
+                    </div>
+
+                    <p className="exam-description">{exam.description}</p>
+
+                    <div className="teacher-info">
+                      <span className="teacher-icon">👨‍🏫</span>
+                      <span>By: {exam.creator?.name || 'Teacher'}</span>
+                    </div>
+
+                    <div className="exam-meta">
+                      <div className="meta-item">
+                        <span className="meta-icon">⏱️</span>
+                        <span className="meta-text">{exam.duration_minutes} min</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">📅</span>
+                        <span className="meta-text">{formatDate(exam.start_time)}</span>
+                      </div>
+                      <div className="meta-item">
+                        <span className="meta-icon">🕐</span>
+                        <span className="meta-text">{formatTime(exam.start_time)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleExamSelect(exam)}
+                      className="start-exam-btn"
+                    >
+                      <span>Start Exam</span>
+                      <span className="btn-arrow">→</span>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </>
