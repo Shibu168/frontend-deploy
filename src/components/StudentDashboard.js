@@ -265,7 +265,7 @@ const StudentDashboard = ({ user, onLogout }) => {
                 <div className="stat-card" style={{ animationDelay: '0.1s' }}>
                   <div
                     className="stat-card-inner"
-                    style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                    style={{ background: 'linear-gradient(135deg, #010001ff 0%, #560aa2ff 100%)' }}
                   >
                     <div className="stat-card-header">
                       <BookOpen size={40} className="stat-icon" />
