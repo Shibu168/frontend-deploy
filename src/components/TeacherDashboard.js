@@ -2,12 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, Calendar, Activity, GraduationCap, CheckCircle, AlertCircle, Award, Clock, Settings } from 'lucide-react';
+import { BookOpen, Users, Calendar, Activity, GraduationCap, CheckCircle, AlertCircle, Award, Clock } from 'lucide-react';
 import ExamList from './Teacher/ExamList';
 import ExamForm from './Teacher/ExamForm';
 import QuestionForm from './Teacher/QuestionForm';
 import ResultsView from './Teacher/ResultsView';
-import SectionManager from './Teacher/SectionManager';
 import './TeacherDashboard.css';
 
 const TeacherDashboard = ({ user, onLogout }) => {
@@ -19,7 +18,6 @@ const TeacherDashboard = ({ user, onLogout }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [recentSubmissions, setRecentSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showSectionManager, setShowSectionManager] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -119,14 +117,6 @@ const TeacherDashboard = ({ user, onLogout }) => {
     setShowLogoutConfirm(false);
   };
 
-  const handleSectionsUpdated = () => {
-    setShowSectionManager(false);
-    // Refresh exam data if needed
-    if (activeTab === 'My Exams') {
-      console.log('Sections updated - refresh exam data');
-    }
-  };
-
   useEffect(() => {
     console.log("Selected exam changed:", selectedExam);
   }, [selectedExam]);
@@ -186,19 +176,6 @@ const TeacherDashboard = ({ user, onLogout }) => {
           <div className="welcome-splash-content">
             <span className="wave-large">👋</span>
             <h1 className="welcome-splash-text">Welcome, {getUserDisplayName()}!</h1>
-          </div>
-        </div>
-      )}
-
-      {/* Section Manager Modal */}
-      {showSectionManager && (
-        <div className="modal-overlay">
-          <div className="modal-content section-manager-modal">
-            <SectionManager 
-              exam={selectedExam} 
-              onSectionsUpdated={handleSectionsUpdated}
-              onClose={() => setShowSectionManager(false)}
-            />
           </div>
         </div>
       )}
@@ -404,25 +381,12 @@ const TeacherDashboard = ({ user, onLogout }) => {
 
         {activeTab === 'My Exams' && (
           <div className="tab-content-wrapper">
-            <div className="exam-list-header">
-              <h2>My Exams</h2>
-              {selectedExam && (
-                <button 
-                  className="manage-sections-btn"
-                  onClick={() => setShowSectionManager(true)}
-                >
-                  <Settings size={18} />
-                  Manage Sections
-                </button>
-              )}
-            </div>
             <ExamList 
               onSelectExam={setSelectedExam}
               onExamSelect={(exam) => {
                 setSelectedExam(exam);
                 setActiveTab('Create Exam');
               }}
-              selectedExam={selectedExam}
             />
           </div>
         )}
@@ -430,25 +394,13 @@ const TeacherDashboard = ({ user, onLogout }) => {
         {activeTab === 'Create Exam' && (
           <div className="tab-content-wrapper">
             {selectedExam ? (
-              <div className="exam-edit-container">
-                <div className="exam-edit-header">
-                  <h2>Editing: {selectedExam.name}</h2>
-                  <button 
-                    className="manage-sections-btn"
-                    onClick={() => setShowSectionManager(true)}
-                  >
-                    <Settings size={18} />
-                    Manage Sections
-                  </button>
-                </div>
-                <QuestionForm 
-                  exam={selectedExam}
-                  onBack={() => {
-                    setSelectedExam(null);
-                    setActiveTab('My Exams');
-                  }}
-                />
-              </div>
+              <QuestionForm 
+                exam={selectedExam}
+                onBack={() => {
+                  setSelectedExam(null);
+                  setActiveTab('My Exams');
+                }}
+              />
             ) : (
               <ExamForm 
                 onExamCreated={(exam) => {

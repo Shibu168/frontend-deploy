@@ -9,8 +9,7 @@ const QuestionForm = ({ exam, onBack }) => {
     question_text: '',
     options: { A: '', B: '', C: '', D: '' },
     correct_answer: 'A',
-    marks: 1,
-    section_id: 'general' // Added section_id field
+    marks: 1
   });
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -108,7 +107,6 @@ const QuestionForm = ({ exam, onBack }) => {
       formDataToSend.append('options', JSON.stringify(formData.options));
       formDataToSend.append('correct_answer', formData.correct_answer);
       formDataToSend.append('marks', formData.marks);
-      formDataToSend.append('section_id', formData.section_id); // Added section_id
 
       if (imageFile) {
         formDataToSend.append('image', imageFile);
@@ -135,8 +133,7 @@ const QuestionForm = ({ exam, onBack }) => {
           question_text: '',
           options: { A: '', B: '', C: '', D: '' },
           correct_answer: 'A',
-          marks: 1,
-          section_id: 'general'
+          marks: 1
         });
         setImageFile(null);
         setEditingQuestion(null);
@@ -159,8 +156,7 @@ const QuestionForm = ({ exam, onBack }) => {
       question_text: question.question_text || '',
       options: question.options,
       correct_answer: question.correct_answer,
-      marks: question.marks,
-      section_id: question.section_id || 'general' // Added section_id
+      marks: question.marks
     });
     setShowForm(true);
   };
@@ -220,28 +216,6 @@ const QuestionForm = ({ exam, onBack }) => {
       alert(`Error publishing exam: ${error.message}`);
     }
   };
-
-  // Group questions by section for better organization
-  const groupQuestionsBySection = () => {
-    const grouped = {};
-    
-    questions.forEach(question => {
-      const sectionId = question.section_id || 'general';
-      const sectionName = exam.section_config?.sections?.find(s => s.id === sectionId)?.name || 'General';
-      
-      if (!grouped[sectionId]) {
-        grouped[sectionId] = {
-          name: sectionName,
-          questions: []
-        };
-      }
-      grouped[sectionId].questions.push(question);
-    });
-    
-    return grouped;
-  };
-
-  const groupedQuestions = groupQuestionsBySection();
 
   return (
     <div className="question-form-container">
@@ -318,35 +292,6 @@ const QuestionForm = ({ exam, onBack }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="question-form">
-            {/* Section Selection */}
-            <div className="form-group">
-              <label className="form-label">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <line x1="8" y1="12" x2="16" y2="12" />
-                  <line x1="12" y1="8" x2="12" y2="16" />
-                </svg>
-                Section
-              </label>
-              <select
-                name="section_id"
-                value={formData.section_id}
-                onChange={handleChange}
-                className="form-select"
-                required
-              >
-                <option value="general">General</option>
-                {exam.section_config?.sections?.map(section => (
-                  <option key={section.id} value={section.id}>
-                    {section.name}
-                  </option>
-                ))}
-              </select>
-              <small className="form-help">
-                Assign this question to a specific section
-              </small>
-            </div>
-
             <div className="form-group">
               <label className="form-label">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -501,82 +446,65 @@ const QuestionForm = ({ exam, onBack }) => {
           </div>
         ) : (
           <div className="questions-list">
-            {Object.entries(groupedQuestions).map(([sectionId, sectionData]) => (
-              <div key={sectionId} className="section-group">
-                <div className="section-header">
-                  <h3 className="section-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                      <line x1="12" y1="8" x2="12" y2="16" />
+            {questions.map((question, index) => (
+              <div key={question.id} className="question-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                <div className="question-card-header">
+                  <div className="question-number">
+                    <span>Q{index + 1}</span>
+                  </div>
+                  <div className="question-marks">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
-                    {sectionData.name}
-                    <span className="section-count">({sectionData.questions.length} questions)</span>
-                  </h3>
+                    {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                  </div>
                 </div>
-                <div className="section-questions">
-                  {sectionData.questions.map((question, index) => (
-                    <div key={question.id} className="question-card" style={{ animationDelay: `${index * 0.1}s` }}>
-                      <div className="question-card-header">
-                        <div className="question-number">
-                          <span>Q{questions.findIndex(q => q.id === question.id) + 1}</span>
-                        </div>
-                        <div className="question-marks">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                          {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
-                        </div>
-                      </div>
 
-                      {question.question_text && (
-                        <p className="question-text">{question.question_text}</p>
-                      )}
+                {question.question_text && (
+                  <p className="question-text">{question.question_text}</p>
+                )}
 
-                      {question.question_image && (
-                        <div className="question-image">
-                          <img src={question.question_image} alt="Question" />
-                        </div>
-                      )}
+                {question.question_image && (
+                  <div className="question-image">
+                    <img src={question.question_image} alt="Question" />
+                  </div>
+                )}
 
-                      <div className="options-list">
-                        {Object.entries(question.options).map(([key, value]) => (
-                          <div
-                            key={key}
-                            className={`option-item ${key === question.correct_answer ? 'correct' : ''}`}
-                          >
-                            <span className="option-key">{key}</span>
-                            <span className="option-value">{value}</span>
-                            {key === question.correct_answer && (
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                                <path d="M22 4L12 14.01l-3-3" />
-                              </svg>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {exam.status === 'draft' && (
-                        <div className="question-actions">
-                          <button onClick={() => handleEdit(question)} className="btn-edit">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                            Edit
-                          </button>
-                          <button onClick={() => handleDelete(question.id)} className="btn-delete">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                            </svg>
-                            Delete
-                          </button>
-                        </div>
+                <div className="options-list">
+                  {Object.entries(question.options).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className={`option-item ${key === question.correct_answer ? 'correct' : ''}`}
+                    >
+                      <span className="option-key">{key}</span>
+                      <span className="option-value">{value}</span>
+                      {key === question.correct_answer && (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                          <path d="M22 4L12 14.01l-3-3" />
+                        </svg>
                       )}
                     </div>
                   ))}
                 </div>
+
+                {exam.status === 'draft' && (
+                  <div className="question-actions">
+                    <button onClick={() => handleEdit(question)} className="btn-edit">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                      Edit
+                    </button>
+                    <button onClick={() => handleDelete(question.id)} className="btn-delete">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
