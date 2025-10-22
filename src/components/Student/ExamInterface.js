@@ -22,6 +22,15 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     isMonitoring: false
   });
 
+  // Section Management States
+  const [currentSection, setCurrentSection] = useState('');
+  const [sectionProgress, setSectionProgress] = useState({});
+  const [navigationRules, setNavigationRules] = useState({});
+  const [sections, setSections] = useState([]);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [viewedQuestions, setViewedQuestions] = useState({});
+  const [flaggedQuestions, setFlaggedQuestions] = useState({});
+
   // Enhanced duration calculation with debugging
   const getExamDuration = () => {
     if (!exam && !location.state?.examData) {
@@ -121,6 +130,148 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   }, [exam, examFromState, examData]);
 
+  // Section Management Functions
+  const groupQuestionsBySection = () => {
+    const grouped = {};
+    const questions = getQuestions();
+    
+    questions.forEach(question => {
+      const sectionId = question.section_id || 'general';
+      if (!grouped[sectionId]) {
+        grouped[sectionId] = [];
+      }
+      grouped[sectionId].push(question);
+    });
+    
+    return grouped;
+  };
+
+  const getCurrentSectionQuestions = () => {
+    const grouped = groupQuestionsBySection();
+    return grouped[currentSection] || [];
+  };
+
+  const fetchProgress = async () => {
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${API_BASE}/api/student/exams/${getExamId()}/progress`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const progressData = await response.json();
+        setSectionProgress(progressData.section_progress);
+        setNavigationRules(progressData.navigation_rules);
+        setSections(progressData.sections);
+        
+        // Set current section if not set
+        if (!currentSection && progressData.sections.length > 0) {
+          setCurrentSection(progressData.sections[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching progress:', error);
+    }
+  };
+
+  const trackQuestionView = async (questionId, sectionId) => {
+    if (viewedQuestions[questionId]) return;
+    
+    setViewedQuestions(prev => ({ ...prev, [questionId]: true }));
+    
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      await fetch(`${API_BASE}/api/student/exams/${getExamId()}/track-view/${questionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ section_id: sectionId })
+      });
+    } catch (error) {
+      console.error('Error tracking view:', error);
+    }
+  };
+
+  const trackQuestionAnswer = async (questionId, sectionId, answer) => {
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      await fetch(`${API_BASE}/api/student/exams/${getExamId()}/track-answer/${questionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ 
+          section_id: sectionId,
+          answer: answer
+        })
+      });
+      
+      // Refresh progress after answering
+      fetchProgress();
+    } catch (error) {
+      console.error('Error tracking answer:', error);
+    }
+  };
+
+  const toggleQuestionFlag = async (questionId, sectionId) => {
+    const newFlaggedState = !flaggedQuestions[questionId];
+    setFlaggedQuestions(prev => ({ ...prev, [questionId]: newFlaggedState }));
+    
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      await fetch(`${API_BASE}/api/student/exams/${getExamId()}/toggle-flag/${questionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ section_id: sectionId })
+      });
+      
+      // Refresh progress after flagging
+      fetchProgress();
+    } catch (error) {
+      console.error('Error toggling flag:', error);
+    }
+  };
+
+  const handleSectionChange = (newSectionId) => {
+    if (!navigationRules.allow_forward_jump && newSectionId !== currentSection) {
+      // Check if current section is completed
+      const currentProgress = sectionProgress[currentSection];
+      if (currentProgress && currentProgress.answered < currentProgress.total) {
+        alert('Please complete all questions in the current section before moving to another section.');
+        return;
+      }
+    }
+    
+    setCurrentSection(newSectionId);
+    setCurrentQuestionIndex(0);
+    setShowProgressModal(false);
+  };
+
+  const getCurrentSectionName = () => {
+    const section = sections.find(s => s.id === currentSection);
+    return section?.name || 'General';
+  };
+
+  const getSectionProgress = (sectionId) => {
+    return sectionProgress[sectionId] || {
+      name: sections.find(s => s.id === sectionId)?.name || 'General',
+      total: 0,
+      answered: 0,
+      viewed: 0,
+      unanswered: 0,
+      flagged: 0,
+      progress: 0
+    };
+  };
+
   // SIMPLE Full Screen Detection - This is the key fix
   useEffect(() => {
     const checkFullScreenStatus = () => {
@@ -164,6 +315,16 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
     };
   }, [examStarted]);
+
+  // Track question views when question changes
+  useEffect(() => {
+    if (examStarted && currentSection) {
+      const currentQuestion = getCurrentSectionQuestions()[currentQuestionIndex];
+      if (currentQuestion) {
+        trackQuestionView(currentQuestion.id, currentSection);
+      }
+    }
+  }, [currentQuestionIndex, currentSection, examStarted]);
 
   // Proctoring: Tab switch detection
   useEffect(() => {
@@ -412,6 +573,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         }
       }
       
+      // Initialize sections and progress
+      await fetchProgress();
+      
       // Initialize proctoring
       setTabSwitchCount(0);
       proctoringRef.current = {
@@ -437,22 +601,42 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   };
 
   const handleAnswerSelect = (questionId, option) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: option
-    }));
+    setAnswers(prev => ({ ...prev, [questionId]: option }));
+    const currentQuestion = getCurrentSectionQuestions()[currentQuestionIndex];
+    if (currentQuestion) {
+      trackQuestionAnswer(questionId, currentSection, option);
+    }
   };
 
   const handleNext = () => {
-    const questions = getQuestions();
-    if (currentQuestionIndex < questions.length - 1) {
+    const currentSectionQuestions = getCurrentSectionQuestions();
+    if (currentQuestionIndex < currentSectionQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      // Move to next section if available
+      const currentIndex = sections.findIndex(s => s.id === currentSection);
+      if (currentIndex < sections.length - 1) {
+        handleSectionChange(sections[currentIndex + 1].id);
+      }
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
+    } else {
+      // Move to previous section if available and allowed
+      if (navigationRules.allow_backward_navigation) {
+        const currentIndex = sections.findIndex(s => s.id === currentSection);
+        if (currentIndex > 0) {
+          const prevSection = sections[currentIndex - 1];
+          const prevSectionQuestions = groupQuestionsBySection()[prevSection.id] || [];
+          handleSectionChange(prevSection.id);
+          setCurrentQuestionIndex(prevSectionQuestions.length - 1);
+        }
+      } else {
+        alert('Returning to previous sections is not allowed.');
+      }
     }
   };
 
@@ -634,6 +818,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           <div className="exam-info">
             <p><strong>Duration:</strong> {validatedDuration} minutes</p>
             <p><strong>Total Questions:</strong> {questions.length}</p>
+            <p><strong>Sections:</strong> {sections.length > 0 ? sections.length : 1}</p>
             <p><strong>Full Screen:</strong> <span style={{color: 'red', fontWeight: 'bold'}}>MANDATORY</span></p>
             <p><strong>Proctoring:</strong> Enabled (Max {MAX_TAB_SWITCHES} tab switches allowed)</p>
           </div>
@@ -642,6 +827,9 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
             <h4>Important Instructions:</h4>
             <ul>
               <li>You have <strong>{validatedDuration} minutes</strong> to complete the exam</li>
+              {sections.length > 0 && (
+                <li><strong>Sections:</strong> Exam is divided into {sections.length} sections</li>
+              )}
               <li><strong style={{color: 'red'}}>FULL SCREEN IS MANDATORY:</strong> Exam will pause if you exit full screen</li>
               <li><strong>Proctoring is active:</strong> Maximum {MAX_TAB_SWITCHES} tab switches allowed</li>
               <li>Do not switch tabs, open new windows, or use developer tools</li>
@@ -663,7 +851,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const currentSectionQuestions = getCurrentSectionQuestions();
+  const currentQuestion = currentSectionQuestions[currentQuestionIndex];
 
   if (!currentQuestion) {
     return (
@@ -725,6 +914,73 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       )}
 
+      {/* Progress Modal */}
+      {showProgressModal && (
+        <div className="progress-modal-overlay">
+          <div className="progress-modal">
+            <div className="progress-modal-header">
+              <h3>Section Progress Overview</h3>
+              <button onClick={() => setShowProgressModal(false)} className="close-modal">
+                ×
+              </button>
+            </div>
+            
+            <div className="progress-sections">
+              {sections.map(section => {
+                const progress = getSectionProgress(section.id);
+                const isCurrent = section.id === currentSection;
+                
+                return (
+                  <div 
+                    key={section.id} 
+                    className={`progress-section-item ${isCurrent ? 'current' : ''} ${
+                      navigationRules.allow_forward_jump ? 'clickable' : ''
+                    }`}
+                    onClick={() => navigationRules.allow_forward_jump && handleSectionChange(section.id)}
+                  >
+                    <div className="section-header">
+                      <h4>{section.name}</h4>
+                      <span className="section-status">
+                        {progress.answered}/{progress.total} answered
+                      </span>
+                    </div>
+                    
+                    <div className="progress-details">
+                      <div className="progress-stats">
+                        <div className="stat answered">
+                          <span className="stat-count">{progress.answered}</span>
+                          <span className="stat-label">Answered</span>
+                        </div>
+                        <div className="stat viewed">
+                          <span className="stat-count">{progress.viewed}</span>
+                          <span className="stat-label">Viewed</span>
+                        </div>
+                        <div className="stat unanswered">
+                          <span className="stat-count">{progress.unanswered}</span>
+                          <span className="stat-label">Unanswered</span>
+                        </div>
+                        <div className="stat flagged">
+                          <span className="stat-count">{progress.flagged}</span>
+                          <span className="stat-label">Flagged</span>
+                        </div>
+                      </div>
+                      
+                      <div className="progress-bar-container">
+                        <div 
+                          className="progress-bar-fill"
+                          style={{ width: `${progress.progress}%` }}
+                        ></div>
+                        <span className="progress-percentage">{progress.progress}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Proctoring Status Bar */}
       <div className="proctoring-status">
         <div className="status-item">
@@ -747,6 +1003,44 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
+      {/* Section Navigation */}
+      {sections.length > 0 && (
+        <div className="section-navigation">
+          <div className="section-tabs">
+            {sections.map(section => {
+              const progress = getSectionProgress(section.id);
+              const isCurrent = section.id === currentSection;
+              
+              return (
+                <button
+                  key={section.id}
+                  className={`section-tab ${isCurrent ? 'active' : ''} ${
+                    navigationRules.allow_forward_jump ? 'clickable' : ''
+                  }`}
+                  onClick={() => navigationRules.allow_forward_jump && handleSectionChange(section.id)}
+                  disabled={!navigationRules.allow_forward_jump && !isCurrent}
+                >
+                  <span className="section-name">{section.name}</span>
+                  <div className="section-progress">
+                    <div 
+                      className="progress-bar" 
+                      style={{ width: `${progress.progress}%` }}
+                    ></div>
+                  </div>
+                  <span className="progress-text">{progress.answered}/{progress.total}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button 
+            onClick={() => setShowProgressModal(true)}
+            className="btn-progress-overview"
+          >
+            📊 Progress Overview
+          </button>
+        </div>
+      )}
+
       <div className="exam-header">
         <h2>{getExamTitle()}</h2>
         <div className="exam-timer">
@@ -761,14 +1055,22 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
+      {/* Section Info */}
+      {sections.length > 0 && (
+        <div className="section-info">
+          <h3>Current Section: {getCurrentSectionName()}</h3>
+          <p>Question {currentQuestionIndex + 1} of {currentSectionQuestions.length} in this section</p>
+        </div>
+      )}
+
       <div className="progress-bar">
         <div 
           className="progress-fill"
-          style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+          style={{ width: `${((currentQuestionIndex + 1) / currentSectionQuestions.length) * 100}%` }}
         ></div>
         <div className="progress-text">
-          Question {currentQuestionIndex + 1} of {questions.length}
-          {` (${Object.keys(answers).length} answered)`}
+          Question {currentQuestionIndex + 1} of {currentSectionQuestions.length} in {getCurrentSectionName()}
+          {` (${Object.keys(answers).length} answered total)`}
           {isPaused && <span style={{color: 'orange', marginLeft: '10px'}}>⏸️ PAUSED</span>}
         </div>
       </div>
@@ -776,6 +1078,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="question-container">
         <div className="question-header">
           <h3>Question {currentQuestionIndex + 1}</h3>
+          <div className="question-actions">
+            <button 
+              onClick={() => toggleQuestionFlag(currentQuestion.id, currentSection)}
+              className={`btn-flag ${flaggedQuestions[currentQuestion.id] ? 'flagged' : ''}`}
+            >
+              {flaggedQuestions[currentQuestion.id] ? '🚩 Flagged' : '🏴 Flag'}
+            </button>
+          </div>
           {isPaused && (
             <div className="paused-overlay">
               <p>Exam is paused. Return to full screen to continue.</p>
@@ -814,18 +1124,21 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="navigation-buttons">
         <button 
           onClick={handlePrevious}
-          disabled={currentQuestionIndex === 0 || isPaused}
+          disabled={(currentQuestionIndex === 0 && 
+                   (!navigationRules.allow_backward_navigation || 
+                    sections.findIndex(s => s.id === currentSection) === 0)) || isPaused}
           className="btn btn-secondary"
         >
           Previous
         </button>
         
         <div className="question-counter">
-          {currentQuestionIndex + 1} / {questions.length}
+          {currentQuestionIndex + 1} / {currentSectionQuestions.length}
           {isPaused && <span style={{color: 'orange'}}> (Paused)</span>}
         </div>
 
-        {currentQuestionIndex === questions.length - 1 ? (
+        {currentQuestionIndex === currentSectionQuestions.length - 1 && 
+         sections.findIndex(s => s.id === currentSection) === sections.length - 1 ? (
           <button 
             onClick={() => handleSubmit(false)}
             disabled={loading || isSubmitting || isPaused}
@@ -839,24 +1152,25 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
             disabled={isPaused}
             className="btn btn-primary"
           >
-            Next
+            {currentQuestionIndex === currentSectionQuestions.length - 1 ? 'Next Section' : 'Next'}
           </button>
         )}
       </div>
 
       <div className="quick-navigation">
-        <h4>Questions:</h4>
+        <h4>Questions in {getCurrentSectionName()}:</h4>
         <div className="question-dots">
-          {questions.map((question, index) => (
+          {currentSectionQuestions.map((question, index) => (
             <button
               key={index}
               className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
                 answers[question.id] ? 'answered' : ''
-              }`}
+              } ${flaggedQuestions[question.id] ? 'flagged' : ''}`}
               onClick={() => !isPaused && setCurrentQuestionIndex(index)}
               disabled={isPaused}
             >
               {index + 1}
+              {flaggedQuestions[question.id] && <span className="flag-indicator">🚩</span>}
             </button>
           ))}
         </div>
