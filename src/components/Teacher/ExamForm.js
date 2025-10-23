@@ -10,12 +10,16 @@ const ExamForm = ({ onExamCreated }) => {
     duration_minutes: 60,
     domain_restriction: '',
     visibility: 'public',
-    shared_emails: []
+    shared_emails: [],
+    question_organization: 'linear', // New field for organization type
+    section_config: null // New field for section configuration
   });
   const [loading, setLoading] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
   const [createdExam, setCreatedExam] = useState(null);
   const [sharedEmailInput, setSharedEmailInput] = useState('');
+  const [showSectionConfig, setShowSectionConfig] = useState(false); // New state for section config
+  const [sections, setSections] = useState([{ id: 'section1', name: 'Section 1', description: '' }]); // Default sections
 
   const convertToUTC = (localDateTimeString) => {
     if (!localDateTimeString) return '';
@@ -38,10 +42,44 @@ const ExamForm = ({ onExamCreated }) => {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    
+    if (name === 'question_organization') {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+      setShowSectionConfig(value === 'section_wise');
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
+  };
+
+  // Add new section
+  const addSection = () => {
+    const newSectionId = `section${sections.length + 1}`;
+    setSections([
+      ...sections,
+      { id: newSectionId, name: `Section ${sections.length + 1}`, description: '' }
+    ]);
+  };
+
+  // Update section
+  const updateSection = (index, field, value) => {
+    const updatedSections = [...sections];
+    updatedSections[index][field] = value;
+    setSections(updatedSections);
+  };
+
+  // Remove section
+  const removeSection = (index) => {
+    if (sections.length > 1) {
+      const updatedSections = sections.filter((_, i) => i !== index);
+      setSections(updatedSections);
+    }
   };
 
   const handleAddEmail = () => {
@@ -68,18 +106,24 @@ const ExamForm = ({ onExamCreated }) => {
     try {
       const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
+      // Prepare section config if section-wise
+      const sectionConfig = formData.question_organization === 'section_wise' ? {
+        sections: sections,
+        navigation_rules: {
+          allow_back: true,
+          allow_skip: true,
+          must_complete_section: false
+        }
+      } : null;
+
       const payload = {
         ...formData,
         start_time: convertToUTC(formData.start_time),
-        end_time: convertToUTC(formData.end_time)
+        end_time: convertToUTC(formData.end_time),
+        section_config: sectionConfig
       };
 
-      console.log('Debug - Time conversion:', {
-        localStart: formData.start_time,
-        utcStart: payload.start_time,
-        localEnd: formData.end_time,
-        utcEnd: payload.end_time
-      });
+      console.log('Debug - Exam creation payload:', payload);
 
       const response = await fetch(`${API_BASE}/api/teacher/exams`, {
         method: 'POST',
@@ -111,8 +155,12 @@ const ExamForm = ({ onExamCreated }) => {
             duration_minutes: 60,
             domain_restriction: '',
             visibility: 'public',
-            shared_emails: []
+            shared_emails: [],
+            question_organization: 'linear',
+            section_config: null
           });
+          setSections([{ id: 'section1', name: 'Section 1', description: '' }]);
+          setShowSectionConfig(false);
         }
       } else {
         const errorData = await response.json();
@@ -142,8 +190,12 @@ const ExamForm = ({ onExamCreated }) => {
       duration_minutes: 60,
       domain_restriction: '',
       visibility: 'public',
-      shared_emails: []
+      shared_emails: [],
+      question_organization: 'linear',
+      section_config: null
     });
+    setSections([{ id: 'section1', name: 'Section 1', description: '' }]);
+    setShowSectionConfig(false);
     setSharedEmailInput('');
   };
 
@@ -218,6 +270,111 @@ const ExamForm = ({ onExamCreated }) => {
                 rows="3"
               />
             </div>
+
+            {/* NEW: Question Organization Type */}
+            <div className="form-group">
+              <label className="form-label">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+                Question Organization *
+              </label>
+              <div className="organization-options">
+                <label className="radio-card">
+                  <input
+                    type="radio"
+                    name="question_organization"
+                    value="linear"
+                    checked={formData.question_organization === 'linear'}
+                    onChange={handleChange}
+                  />
+                  <div className="radio-card-content">
+                    <div className="radio-icon">📝</div>
+                    <div>
+                      <strong>Linear</strong>
+                      <p>All questions in sequence</p>
+                    </div>
+                  </div>
+                </label>
+
+                <label className="radio-card">
+                  <input
+                    type="radio"
+                    name="question_organization"
+                    value="section_wise"
+                    checked={formData.question_organization === 'section_wise'}
+                    onChange={handleChange}
+                  />
+                  <div className="radio-card-content">
+                    <div className="radio-icon">📑</div>
+                    <div>
+                      <strong>Section-wise</strong>
+                      <p>Organize questions into sections</p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Section Configuration (shown only for section-wise) */}
+            {showSectionConfig && (
+              <div className="form-group section-config">
+                <label className="form-label">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <path d="M3 9h18M9 21V9" />
+                  </svg>
+                  Exam Sections
+                </label>
+                <div className="sections-list">
+                  {sections.map((section, index) => (
+                    <div key={section.id} className="section-item">
+                      <div className="section-header">
+                        <span className="section-number">Section {index + 1}</span>
+                        {sections.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSection(index)}
+                            className="remove-section-btn"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <div className="section-fields">
+                        <input
+                          type="text"
+                          value={section.name}
+                          onChange={(e) => updateSection(index, 'name', e.target.value)}
+                          className="form-input"
+                          placeholder="Section name"
+                          required
+                        />
+                        <input
+                          type="text"
+                          value={section.description}
+                          onChange={(e) => updateSection(index, 'description', e.target.value)}
+                          className="form-input"
+                          placeholder="Section description (optional)"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addSection}
+                  className="add-section-btn"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Add Another Section
+                </button>
+              </div>
+            )}
 
             <div className="form-row">
               <div className="form-group">
@@ -461,6 +618,15 @@ const ExamForm = ({ onExamCreated }) => {
                   <div>
                     <div className="detail-label">Title</div>
                     <div className="detail-value">{createdExam?.title}</div>
+                  </div>
+                </div>
+                <div className="detail-item">
+                  <div className="detail-icon">📑</div>
+                  <div>
+                    <div className="detail-label">Organization</div>
+                    <div className="detail-value">
+                      {createdExam?.question_organization === 'section_wise' ? 'Section-wise' : 'Linear'}
+                    </div>
                   </div>
                 </div>
                 <div className="detail-item">

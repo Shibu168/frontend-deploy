@@ -723,3 +723,100 @@
     height: 70px;
   }
 }
+/* Organization Badge */
+.organization-badge {
+  margin-top: 8px;
+}
+
+.badge-section {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Section-wise Questions */
+.section-wise-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.question-section {
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.section-header {
+  background: #f8f9fa;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.section-title {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-icon {
+  font-size: 20px;
+}
+
+.section-description {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.section-stats {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #888;
+  font-weight: 500;
+}
+
+.no-section-questions {
+  padding: 40px 20px;
+  text-align: center;
+  color: #666;
+}
+
+/* Uncategorized Section */
+.question-section.uncategorized {
+  border-color: #ff9800;
+}
+
+.question-section.uncategorized .section-header {
+  background: #fff3e0;
+}
+
+/* Sections Count */
+.sections-count {
+  font-size: 14px;
+  font-weight: normal;
+  color: #666;
+  margin-left: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .section-wise-questions {
+    gap: 16px;
+  }
+  
+  .section-header {
+    padding: 12px 16px;
+  }
+  
+  .section-title {
+    font-size: 16px;
+  }
+}

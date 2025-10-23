@@ -9,17 +9,36 @@ const QuestionForm = ({ exam, onBack }) => {
     question_text: '',
     options: { A: '', B: '', C: '', D: '' },
     correct_answer: 'A',
-    marks: 1
+    marks: 1,
+    section_id: '' // New field for section
   });
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
+  const [selectedSection, setSelectedSection] = useState(''); // For section selection
 
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
   useEffect(() => {
     fetchQuestions();
   }, [exam.id]);
+
+  // Set default section when exam changes or when adding new question
+  useEffect(() => {
+    if (exam?.question_organization === 'section_wise' && exam?.section_config?.sections?.length > 0) {
+      setSelectedSection(exam.section_config.sections[0].id);
+      setFormData(prev => ({
+        ...prev,
+        section_id: exam.section_config.sections[0].id
+      }));
+    } else {
+      setSelectedSection('');
+      setFormData(prev => ({
+        ...prev,
+        section_id: ''
+      }));
+    }
+  }, [exam, showForm]);
 
   const fetchQuestions = async () => {
     if (!exam || !exam.id) {
@@ -89,6 +108,15 @@ const QuestionForm = ({ exam, onBack }) => {
     }
   };
 
+  const handleSectionChange = (e) => {
+    const sectionId = e.target.value;
+    setSelectedSection(sectionId);
+    setFormData({
+      ...formData,
+      section_id: sectionId
+    });
+  };
+
   const handleImageChange = (e) => {
     setImageFile(e.target.files[0]);
   };
@@ -107,6 +135,11 @@ const QuestionForm = ({ exam, onBack }) => {
       formDataToSend.append('options', JSON.stringify(formData.options));
       formDataToSend.append('correct_answer', formData.correct_answer);
       formDataToSend.append('marks', formData.marks);
+
+      // Add section_id for section-wise exams
+      if (exam.question_organization === 'section_wise' && formData.section_id) {
+        formDataToSend.append('section_id', formData.section_id);
+      }
 
       if (imageFile) {
         formDataToSend.append('image', imageFile);
@@ -133,10 +166,12 @@ const QuestionForm = ({ exam, onBack }) => {
           question_text: '',
           options: { A: '', B: '', C: '', D: '' },
           correct_answer: 'A',
-          marks: 1
+          marks: 1,
+          section_id: exam?.question_organization === 'section_wise' && exam?.section_config?.sections?.[0]?.id || ''
         });
         setImageFile(null);
         setEditingQuestion(null);
+        setSelectedSection(exam?.question_organization === 'section_wise' && exam?.section_config?.sections?.[0]?.id || '');
         fetchQuestions();
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -156,8 +191,15 @@ const QuestionForm = ({ exam, onBack }) => {
       question_text: question.question_text || '',
       options: question.options,
       correct_answer: question.correct_answer,
-      marks: question.marks
+      marks: question.marks,
+      section_id: question.section_id || ''
     });
+    
+    // Set the selected section for editing
+    if (question.section_id) {
+      setSelectedSection(question.section_id);
+    }
+    
     setShowForm(true);
   };
 
@@ -217,12 +259,36 @@ const QuestionForm = ({ exam, onBack }) => {
     }
   };
 
+  // Group questions by section for section-wise exams
+  const groupedQuestions = exam?.question_organization === 'section_wise' 
+    ? questions.reduce((acc, question) => {
+        const sectionId = question.section_id || 'default';
+        if (!acc[sectionId]) {
+          acc[sectionId] = [];
+        }
+        acc[sectionId].push(question);
+        return acc;
+      }, {})
+    : null;
+
+  // Get section name by ID
+  const getSectionName = (sectionId) => {
+    if (!exam?.section_config?.sections) return 'Uncategorized';
+    const section = exam.section_config.sections.find(s => s.id === sectionId);
+    return section ? section.name : 'Uncategorized';
+  };
+
   return (
     <div className="question-form-container">
       <div className="question-header">
         <div className="header-content">
           <h1 className="question-title">Manage Questions</h1>
           <p className="question-subtitle">{exam.title}</p>
+          {exam.question_organization === 'section_wise' && (
+            <div className="organization-badge">
+              <span className="badge-section">📑 Section-wise Organization</span>
+            </div>
+          )}
         </div>
         <div className="header-actions">
           <button onClick={onBack} className="btn-back">
@@ -292,6 +358,37 @@ const QuestionForm = ({ exam, onBack }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="question-form">
+            {/* Section Selection for Section-wise Exams */}
+            {exam.question_organization === 'section_wise' && (
+              <div className="form-group">
+                <label className="form-label">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <path d="M3 9h18M9 21V9" />
+                  </svg>
+                  Section *
+                </label>
+                <select
+                  value={selectedSection}
+                  onChange={handleSectionChange}
+                  className="form-select"
+                  required
+                >
+                  <option value="">Select a section</option>
+                  {exam.section_config?.sections?.map(section => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedSection && (
+                  <small className="form-help">
+                    {exam.section_config?.sections?.find(s => s.id === selectedSection)?.description}
+                  </small>
+                )}
+              </div>
+            )}
+
             <div className="form-group">
               <label className="form-label">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -419,7 +516,14 @@ const QuestionForm = ({ exam, onBack }) => {
 
       <div className="questions-section">
         <div className="questions-section-header">
-          <h2>Questions ({questions.length})</h2>
+          <h2>
+            Questions ({questions.length})
+            {exam.question_organization === 'section_wise' && exam.section_config && (
+              <span className="sections-count">
+                in {exam.section_config.sections.length} section(s)
+              </span>
+            )}
+          </h2>
           {exam.status === 'draft' && questions.length > 0 && (
             <button onClick={handlePublish} className="btn-publish" disabled={!API_BASE}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -444,7 +548,185 @@ const QuestionForm = ({ exam, onBack }) => {
             <h3>No questions added yet</h3>
             <p>Add your first question to get started!</p>
           </div>
+        ) : exam.question_organization === 'section_wise' ? (
+          /* Section-wise Question Display */
+          <div className="section-wise-questions">
+            {exam.section_config?.sections?.map(section => {
+              const sectionQuestions = groupedQuestions?.[section.id] || [];
+              return (
+                <div key={section.id} className="question-section">
+                  <div className="section-header">
+                    <h3 className="section-title">
+                      <span className="section-icon">📑</span>
+                      {section.name}
+                    </h3>
+                    {section.description && (
+                      <p className="section-description">{section.description}</p>
+                    )}
+                    <div className="section-stats">
+                      {sectionQuestions.length} question(s)
+                    </div>
+                  </div>
+                  
+                  {sectionQuestions.length === 0 ? (
+                    <div className="no-section-questions">
+                      <p>No questions in this section yet.</p>
+                    </div>
+                  ) : (
+                    <div className="questions-list">
+                      {sectionQuestions.map((question, index) => (
+                        <div key={question.id} className="question-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                          <div className="question-card-header">
+                            <div className="question-number">
+                              <span>Q{index + 1}</span>
+                            </div>
+                            <div className="question-marks">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                              </svg>
+                              {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                            </div>
+                          </div>
+
+                          {question.question_text && (
+                            <p className="question-text">{question.question_text}</p>
+                          )}
+
+                          {question.question_image && (
+                            <div className="question-image">
+                              <img src={question.question_image} alt="Question" />
+                            </div>
+                          )}
+
+                          <div className="options-list">
+                            {Object.entries(question.options).map(([key, value]) => (
+                              <div
+                                key={key}
+                                className={`option-item ${key === question.correct_answer ? 'correct' : ''}`}
+                              >
+                                <span className="option-key">{key}</span>
+                                <span className="option-value">{value}</span>
+                                {key === question.correct_answer && (
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                                    <path d="M22 4L12 14.01l-3-3" />
+                                  </svg>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {exam.status === 'draft' && (
+                            <div className="question-actions">
+                              <button onClick={() => handleEdit(question)} className="btn-edit">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                Edit
+                              </button>
+                              <button onClick={() => handleDelete(question.id)} className="btn-delete">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            
+            {/* Uncategorized questions */}
+            {groupedQuestions && Object.keys(groupedQuestions).some(key => !exam.section_config?.sections?.some(s => s.id === key)) && (
+              <div className="question-section uncategorized">
+                <div className="section-header">
+                  <h3 className="section-title">
+                    <span className="section-icon">❓</span>
+                    Uncategorized Questions
+                  </h3>
+                  <div className="section-stats">
+                    {Object.keys(groupedQuestions)
+                      .filter(key => !exam.section_config?.sections?.some(s => s.id === key))
+                      .reduce((total, key) => total + groupedQuestions[key].length, 0)} question(s)
+                  </div>
+                </div>
+                
+                <div className="questions-list">
+                  {Object.keys(groupedQuestions)
+                    .filter(key => !exam.section_config?.sections?.some(s => s.id === key))
+                    .flatMap(key => groupedQuestions[key])
+                    .map((question, index) => (
+                      <div key={question.id} className="question-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                        <div className="question-card-header">
+                          <div className="question-number">
+                            <span>Q{index + 1}</span>
+                          </div>
+                          <div className="question-marks">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                            </svg>
+                            {question.marks} {question.marks === 1 ? 'mark' : 'marks'}
+                          </div>
+                        </div>
+
+                        {question.question_text && (
+                          <p className="question-text">{question.question_text}</p>
+                        )}
+
+                        {question.question_image && (
+                          <div className="question-image">
+                            <img src={question.question_image} alt="Question" />
+                          </div>
+                        )}
+
+                        <div className="options-list">
+                          {Object.entries(question.options).map(([key, value]) => (
+                            <div
+                              key={key}
+                              className={`option-item ${key === question.correct_answer ? 'correct' : ''}`}
+                            >
+                              <span className="option-key">{key}</span>
+                              <span className="option-value">{value}</span>
+                              {key === question.correct_answer && (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                                  <path d="M22 4L12 14.01l-3-3" />
+                                </svg>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {exam.status === 'draft' && (
+                          <div className="question-actions">
+                            <button onClick={() => handleEdit(question)} className="btn-edit">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                              Edit
+                            </button>
+                            <button onClick={() => handleDelete(question.id)} className="btn-delete">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
+          /* Linear Question Display */
           <div className="questions-list">
             {questions.map((question, index) => (
               <div key={question.id} className="question-card" style={{ animationDelay: `${index * 0.1}s` }}>
