@@ -1,9 +1,9 @@
-// ResultsView.js
 import React, { useState, useEffect } from 'react';
+import { Download, RefreshCw, Search, ArrowUpDown } from 'lucide-react';
 import TeacherResultDetails from './TeacherResultDetails';
 import './ResultsView.css';
 
-const ResultsView = ({ exam, onBack }) => {
+const ResultsPage = ({ exam, onBack }) => {
   const [results, setResults] = useState([]);
   const [filteredResults, setFilteredResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +13,14 @@ const ResultsView = ({ exam, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'percentage', direction: 'desc' });
   const [refreshing, setRefreshing] = useState(false);
+  const [animatedStats, setAnimatedStats] = useState({
+    totalStudents: 0,
+    averageScore: 0,
+    lowestScore: 0,
+    highestScore: 0,
+    averagePercentage: 0,
+    totalMarks: 0
+  });
 
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
@@ -35,6 +43,37 @@ const ResultsView = ({ exam, onBack }) => {
     const sorted = sortResults(filtered, sortConfig.key, sortConfig.direction);
     setFilteredResults(sorted);
   }, [results, searchTerm, sortConfig]);
+
+  // Animate statistics
+  useEffect(() => {
+    if (results.length > 0) {
+      const stats = calculateStats();
+      if (stats) {
+        const duration = 1500;
+        const steps = 60;
+        const interval = duration / steps;
+
+        let step = 0;
+        const timer = setInterval(() => {
+          step++;
+          const progress = step / steps;
+
+          setAnimatedStats({
+            totalStudents: Math.floor(stats.totalStudents * progress),
+            averageScore: (stats.averageScore * progress).toFixed(2),
+            lowestScore: Math.floor(stats.lowestScore * progress),
+            highestScore: Math.floor(stats.highestScore * progress),
+            averagePercentage: (stats.averagePercentage * progress).toFixed(2),
+            totalMarks: stats.totalMarks
+          });
+
+          if (step >= steps) clearInterval(timer);
+        }, interval);
+
+        return () => clearInterval(timer);
+      }
+    }
+  }, [results]);
 
   const fetchResults = async () => {
     try {
@@ -150,7 +189,6 @@ const ResultsView = ({ exam, onBack }) => {
 
   const sortResults = (data, key, direction) => {
     return [...data].sort((a, b) => {
-      // First, calculate the metrics for both items
       const totalMarksA = a.answers.reduce((sum, answer) => 
         sum + (answer.question ? answer.question.marks : 0), 0);
       const obtainedMarksA = a.answers.reduce((sum, answer) => 
@@ -163,7 +201,6 @@ const ResultsView = ({ exam, onBack }) => {
         sum + (answer.marks_obtained || 0), 0);
       const percentageB = totalMarksB > 0 ? (obtainedMarksB / totalMarksB) * 100 : 0;
 
-      // Calculate ranks for both items
       const allStudents = [...data].map(student => {
         const totalMarks = student.answers.reduce((sum, answer) => 
           sum + (answer.question ? answer.question.marks : 0), 0);
@@ -218,22 +255,8 @@ const ResultsView = ({ exam, onBack }) => {
     });
   };
 
-  const getSortIcon = (columnKey) => {
-    if (sortConfig.key !== columnKey) {
-      return '↕️';
-    }
-    return sortConfig.direction === 'asc' ? '↑' : '↓';
-  };
-
   const handleRefresh = () => {
     fetchResults();
-  };
-
-  const getPercentageColor = (percent) => {
-    if (percent >= 80) return 'excellent';
-    if (percent >= 60) return 'good';
-    if (percent >= 40) return 'average';
-    return 'poor';
   };
 
   const calculateStats = () => {
@@ -259,23 +282,56 @@ const ResultsView = ({ exam, onBack }) => {
     };
   };
 
-  const stats = calculateStats();
+  const calculatePerformanceDistribution = () => {
+    if (filteredResults.length === 0) return { excellent: 0, good: 0, average: 0, poor: 0 };
+
+    const distribution = {
+      excellent: 0,
+      good: 0,
+      average: 0,
+      poor: 0
+    };
+
+    filteredResults.forEach(attempt => {
+      const totalMarks = attempt.answers.reduce((sum, answer) =>
+        sum + (answer.question ? answer.question.marks : 0), 0);
+      const obtainedMarks = attempt.answers.reduce((sum, answer) =>
+        sum + (answer.marks_obtained || 0), 0);
+      const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+
+      if (percentage >= 80) distribution.excellent++;
+      else if (percentage >= 60) distribution.good++;
+      else if (percentage >= 40) distribution.average++;
+      else distribution.poor++;
+    });
+
+    return distribution;
+  };
+
+  const getPercentageColor = (percent) => {
+    if (percent >= 80) return 'excellent';
+    if (percent >= 60) return 'good';
+    if (percent >= 40) return 'average';
+    return 'poor';
+  };
+
+  const performanceDistribution = calculatePerformanceDistribution();
+  const totalStudents = filteredResults.length;
 
   if (loading) {
     return (
-      <div className="results-container">
-        <div className="results-header">
-          <div className="header-content">
-            <h1 className="results-title">Exam Results</h1>
-            <p className="results-subtitle">{exam.title}</p>
+      <div className="results-page">
+        <header className="results-header">
+          <div className="header-left">
+            <h1>Exam Results</h1>
+            <span className="exam-name">{exam.title}</span>
           </div>
-          <button onClick={onBack} className="btn-back">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back to Exams
-          </button>
-        </div>
+          <div className="header-right">
+            <button className="btn-gradient" onClick={onBack}>
+              <span>Back to Exams</span>
+            </button>
+          </div>
+        </header>
         <div className="loading-container">
           <div className="spinner"></div>
           <p>Loading results...</p>
@@ -284,14 +340,13 @@ const ResultsView = ({ exam, onBack }) => {
     );
   }
 
-  // If showing student details, render the TeacherResultDetails component
   if (showDetails && selectedStudent) {
     return (
       <TeacherResultDetails
         student={selectedStudent}
         examDetails={{
           id: exam.id,
-          totalMarks: stats?.totalMarks || 0,
+          totalMarks: animatedStats.totalMarks || 0,
           title: exam.title,
           type: exam.question_organization
         }}
@@ -302,191 +357,135 @@ const ResultsView = ({ exam, onBack }) => {
   }
 
   return (
-    <div className="results-container">
-      <div className="results-header">
-        <div className="header-content">
-          <h1 className="results-title">Exam Results</h1>
-          <p className="results-subtitle">{exam.title}</p>
+    <div className="results-page">
+      <header className="results-header">
+        <div className="header-left">
+          <h1>Exam Results</h1>
+          <span className="exam-name">{exam.title}</span>
         </div>
-        <div className="header-actions">
-          <button onClick={onBack} className="btn-back">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Back to Exams
+        <div className="header-right">
+          <button className="btn-gradient" onClick={onBack}>
+            <span>Back to Exams</span>
           </button>
           {results.length > 0 && (
-            <button onClick={handleDownload} className="btn-download" disabled={!API_BASE}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              Download CSV
+            <button className="btn-gradient" onClick={handleDownload} disabled={!API_BASE}>
+              <Download size={18} />
+              <span>Download</span>
             </button>
           )}
         </div>
-      </div>
+      </header>
 
       {!API_BASE && (
         <div className="alert alert-error">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-          <div>
-            <strong>Backend Not Configured</strong>
-            <p>Cannot fetch results without backend URL</p>
-          </div>
+          <strong>Backend Not Configured</strong>
+          <p>Cannot fetch results without backend URL</p>
         </div>
       )}
 
       {error && (
         <div className="alert alert-error">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-          <div>
-            <strong>Error</strong>
-            <p>{error}</p>
-          </div>
+          <strong>Error</strong>
+          <p>{error}</p>
           <button onClick={fetchResults} className="retry-btn">Retry</button>
         </div>
       )}
 
       {!error && results.length === 0 ? (
         <div className="no-results">
-          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
           <h2>No results available yet</h2>
           <p>Students need to complete the exam for results to appear here.</p>
         </div>
       ) : results.length > 0 && (
         <>
-          {stats && (
-            <div className="stats-section">
-              <h2>Summary Statistics</h2>
-              <div className="stats-grid">
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.totalStudents}</div>
-                    <div className="stat-label-result">Total Students</div>
-                  </div>
-                </div>
-
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.averageScore}</div>
-                    <div className="stat-label-result">Average Score</div>
-                  </div>
-                </div>
-
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.highestScore}</div>
-                    <div className="stat-label-result">Highest Score</div>
-                  </div>
-                </div>
-
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M16 16s-1.5-2-4-2-4 2-4 2M9 9h.01M15 9h.01" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.lowestScore}</div>
-                    <div className="stat-label-result">Lowest Score</div>
-                  </div>
-                </div>
-
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.totalMarks}</div>
-                    <div className="stat-label-result">Total Marks</div>
-                  </div>
-                </div>
-
-                <div className="stat-card-result">
-                  <div className="stat-icon-result">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 6v6l4 2" />
-                    </svg>
-                  </div>
-                  <div className="stat-content-result">
-                    <div className="stat-value-result">{stats.averagePercentage}%</div>
-                    <div className="stat-label-result">Avg Percentage</div>
-                  </div>
-                </div>
+          <section className="summary-stats">
+            <div className="stat-card stat-card-1">
+              <div className="stat-icon">👥</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.totalStudents}</div>
+                <div className="stat-label">Total Students</div>
               </div>
             </div>
-          )}
 
-          <div className="results-table-section">
-            <div className="table-controls">
-              <div className="search-control">
-                <div className="search-input-wrapper">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="M21 21l-4.35-4.35" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Search by email or name..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input"
-                  />
-                  {searchTerm && (
-                    <button 
-                      className="clear-search" 
-                      onClick={() => setSearchTerm('')}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-                <div className="search-info">
-                  Showing {filteredResults.length} of {results.length} students
-                  {searchTerm && (
-                    <span className="search-term"> for "{searchTerm}"</span>
-                  )}
-                </div>
+            <div className="stat-card stat-card-2">
+              <div className="stat-icon">📊</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.totalMarks}</div>
+                <div className="stat-label">Total Marks</div>
               </div>
-              
-              <div className="controls-right">
+            </div>
+
+            <div className="stat-card stat-card-3">
+              <div className="stat-icon">📈</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.averageScore}</div>
+                <div className="stat-label">Average Score</div>
+              </div>
+            </div>
+
+            <div className="stat-card stat-card-4">
+              <div className="stat-icon">📉</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.lowestScore}</div>
+                <div className="stat-label">Lowest Score</div>
+              </div>
+            </div>
+
+            <div className="stat-card stat-card-5">
+              <div className="stat-icon">🏆</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.highestScore}</div>
+                <div className="stat-label">Highest Score</div>
+              </div>
+            </div>
+
+            <div className="stat-card stat-card-6">
+              <div className="stat-icon">💯</div>
+              <div className="stat-content">
+                <div className="stat-value">{animatedStats.averagePercentage}%</div>
+                <div className="stat-label">Average Percentage</div>
+              </div>
+            </div>
+          </section>
+
+          <section className="table-section">
+            <div className="table-controls">
+              <div className="search-box">
+                <Search size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button 
+                    className="clear-search" 
+                    onClick={() => setSearchTerm('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="control-actions">
+                <select 
+                  value={sortConfig.key} 
+                  onChange={(e) => handleSort(e.target.value)} 
+                  className="sort-dropdown"
+                >
+                  <option value="rank">Sort by Rank</option>
+                  <option value="name">Sort by Name</option>
+                  <option value="email">Sort by Email</option>
+                  <option value="score">Sort by Score</option>
+                  <option value="percentage">Sort by Percentage</option>
+                  <option value="completionTime">Sort by Completion Time</option>
+                </select>
                 <button 
-                  onClick={handleRefresh} 
-                  className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
+                  className={`refresh-btn ${refreshing ? 'spinning' : ''}`} 
+                  onClick={handleRefresh}
                   disabled={refreshing}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M23 4v6h-6M1 20v-6h6" />
-                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-                  </svg>
-                  {refreshing ? 'Refreshing...' : 'Refresh'}
+                  <RefreshCw size={20} />
                 </button>
               </div>
             </div>
@@ -495,44 +494,14 @@ const ResultsView = ({ exam, onBack }) => {
               <table className="results-table">
                 <thead>
                   <tr>
-                    <th 
-                      onClick={() => handleSort('rank')}
-                      className="sortable-header"
-                    >
-                      Rank {getSortIcon('rank')}
-                    </th>
-                    <th 
-                      onClick={() => handleSort('name')}
-                      className="sortable-header"
-                    >
-                      Student Name {getSortIcon('name')}
-                    </th>
-                    <th 
-                      onClick={() => handleSort('email')}
-                      className="sortable-header"
-                    >
-                      Email {getSortIcon('email')}
-                    </th>
-                    <th 
-                      onClick={() => handleSort('score')}
-                      className="sortable-header"
-                    >
-                      Score {getSortIcon('score')}
-                    </th>
+                    <th>Rank</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Score</th>
                     <th>Total Marks</th>
-                    <th 
-                      onClick={() => handleSort('percentage')}
-                      className="sortable-header"
-                    >
-                      Percentage {getSortIcon('percentage')}
-                    </th>
-                    <th 
-                      onClick={() => handleSort('completionTime')}
-                      className="sortable-header"
-                    >
-                      Completion Time {getSortIcon('completionTime')}
-                    </th>
-                    <th>View Details</th>
+                    <th>Percentage</th>
+                    <th>Completion Time</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -544,7 +513,6 @@ const ResultsView = ({ exam, onBack }) => {
                         sum + (answer.marks_obtained || 0), 0);
                       const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
                       
-                      // Calculate actual rank based on percentage
                       const allStudents = [...results].map(student => {
                         const totalMarks = student.answers.reduce((sum, answer) => 
                           sum + (answer.question ? answer.question.marks : 0), 0);
@@ -572,28 +540,26 @@ const ResultsView = ({ exam, onBack }) => {
                               {attempt.rank > 3 && `#${attempt.rank}`}
                             </div>
                           </td>
-                          <td>
+                          <td className="student-name">
                             <div className="student-info">
                               <div className="student-avatar">
                                 {attempt.student?.name?.charAt(0).toUpperCase() || 'S'}
                               </div>
-                              <span className="student-name">{attempt.student?.name || 'N/A'}</span>
+                              <span>{attempt.student?.name || 'N/A'}</span>
                             </div>
                           </td>
-                          <td className="email-cell">{attempt.student?.email || 'N/A'}</td>
-                          <td className="score-cell">
-                            <strong>{attempt.obtainedMarks}</strong>
-                          </td>
-                          <td className="total-cell">{attempt.totalMarks}</td>
+                          <td className="student-email">{attempt.student?.email || 'N/A'}</td>
+                          <td className="score-cell">{attempt.obtainedMarks}</td>
+                          <td>{attempt.totalMarks}</td>
                           <td>
                             <div className={`percentage-badge ${getPercentageColor(attempt.percentage)}`}>
                               {attempt.percentage.toFixed(2)}%
                             </div>
                           </td>
-                          <td className="time-cell">{completionTime}</td>
+                          <td>{completionTime}</td>
                           <td>
                             <button 
-                              className="btn-view-details"
+                              className="view-details-btn"
                               onClick={() => handleViewDetails(attempt)}
                             >
                               View Details
@@ -608,10 +574,6 @@ const ResultsView = ({ exam, onBack }) => {
 
             {filteredResults.length === 0 && searchTerm && (
               <div className="no-search-results">
-                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="M21 21l-4.35-4.35" />
-                </svg>
                 <h3>No students found</h3>
                 <p>No students match your search for "{searchTerm}"</p>
                 <button 
@@ -622,7 +584,105 @@ const ResultsView = ({ exam, onBack }) => {
                 </button>
               </div>
             )}
-          </div>
+          </section>
+
+          <section className="charts-section">
+            <h2>Performance Analytics</h2>
+            <div className="charts-container one-chart">
+              <div className="chart-card">
+                <h3>Score Distribution</h3>
+                <div className="pie-chart">
+                  <div className="chart-placeholder">
+                    <svg viewBox="0 0 200 200" className="pie-svg">
+                      {totalStudents > 0 && (
+                        <>
+                          <circle 
+                            cx="100" 
+                            cy="100" 
+                            r="80" 
+                            fill="none" 
+                            stroke="url(#gradient1)" 
+                            strokeWidth="40" 
+                            strokeDasharray={`${(performanceDistribution.excellent / totalStudents) * 251.2} 251.2`} 
+                            transform="rotate(-90 100 100)" 
+                          />
+                          <circle 
+                            cx="100" 
+                            cy="100" 
+                            r="80" 
+                            fill="none" 
+                            stroke="url(#gradient2)" 
+                            strokeWidth="40" 
+                            strokeDasharray={`${(performanceDistribution.good / totalStudents) * 251.2} 251.2`} 
+                            strokeDashoffset={`-${(performanceDistribution.excellent / totalStudents) * 251.2}`} 
+                            transform="rotate(-90 100 100)" 
+                          />
+                          <circle 
+                            cx="100" 
+                            cy="100" 
+                            r="80" 
+                            fill="none" 
+                            stroke="url(#gradient3)" 
+                            strokeWidth="40" 
+                            strokeDasharray={`${(performanceDistribution.average / totalStudents) * 251.2} 251.2`} 
+                            strokeDashoffset={`-${((performanceDistribution.excellent + performanceDistribution.good) / totalStudents) * 251.2}`} 
+                            transform="rotate(-90 100 100)" 
+                          />
+                          <circle 
+                            cx="100" 
+                            cy="100" 
+                            r="80" 
+                            fill="none" 
+                            stroke="url(#gradient4)" 
+                            strokeWidth="40" 
+                            strokeDasharray={`${(performanceDistribution.poor / totalStudents) * 251.2} 251.2`} 
+                            strokeDashoffset={`-${((performanceDistribution.excellent + performanceDistribution.good + performanceDistribution.average) / totalStudents) * 251.2}`} 
+                            transform="rotate(-90 100 100)" 
+                          />
+                        </>
+                      )}
+                      <defs>
+                        <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#667eea" />
+                          <stop offset="100%" stopColor="#764ba2" />
+                        </linearGradient>
+                        <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#f093fb" />
+                          <stop offset="100%" stopColor="#f5576c" />
+                        </linearGradient>
+                        <linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#4facfe" />
+                          <stop offset="100%" stopColor="#00f2fe" />
+                        </linearGradient>
+                        <linearGradient id="gradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#43e97b" />
+                          <stop offset="100%" stopColor="#38f9d7" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <div className="chart-legend">
+                      <div className="legend-item">
+                        <span className="legend-color" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}></span>
+                        <span>Excellent (80-100%) - {performanceDistribution.excellent}</span>
+                      </div>
+                      <div className="legend-item">
+                        <span className="legend-color" style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}></span>
+                        <span>Good (60-79%) - {performanceDistribution.good}</span>
+                      </div>
+                      <div className="legend-item">
+                        <span className="legend-color" style={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}></span>
+                        <span>Average (40-59%) - {performanceDistribution.average}</span>
+                      </div>
+                      <div className="legend-item">
+                        <span className="legend-color" style={{ background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' }}></span>
+                        <span>Poor (&lt;40%) - {performanceDistribution.poor}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </>
       )}
     </div>
