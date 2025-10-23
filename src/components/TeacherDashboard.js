@@ -6,7 +6,7 @@ import { BookOpen, Users, Calendar, Activity, GraduationCap, CheckCircle, AlertC
 import ExamList from './Teacher/ExamList';
 import ExamForm from './Teacher/ExamForm';
 import QuestionForm from './Teacher/QuestionForm';
-import ResultsView from './Teacher/ResultsView';
+import ResultsPage from './Teacher/ResultsPage';
 import './TeacherDashboard.css';
 
 const TeacherDashboard = ({ user, onLogout }) => {
@@ -416,7 +416,7 @@ const TeacherDashboard = ({ user, onLogout }) => {
         {activeTab === 'Results' && (
           <div className="tab-content-wrapper">
             {selectedExam ? (
-              <ResultsView 
+              <ResultsPage
                 exam={selectedExam}
                 onBack={() => {
                   setSelectedExam(null);
