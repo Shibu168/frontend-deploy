@@ -1,19 +1,47 @@
-// TeacherResultDetails.js
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import './TeacherResultDetails.css';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import './ViewDetailsPage.css';
 
 const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
   const [studentAnswers, setStudentAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [chartType, setChartType] = useState('pie'); // 'pie' or 'bar'
+  const [chartType, setChartType] = useState('pie');
+  const [expandedSections, setExpandedSections] = useState({});
+  const [animatedStats, setAnimatedStats] = useState({
+    rank: 0,
+    percentage: 0,
+  });
 
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
   useEffect(() => {
     fetchStudentAnswers();
   }, [student.attemptId]);
+
+  useEffect(() => {
+    if (student) {
+      const duration = 1500;
+      const steps = 60;
+      const interval = duration / steps;
+
+      let step = 0;
+      const timer = setInterval(() => {
+        step++;
+        const progress = step / steps;
+
+        setAnimatedStats({
+          rank: Math.floor(student.rank * progress),
+          percentage: (student.percentage * progress).toFixed(2),
+        });
+
+        if (step >= steps) clearInterval(timer);
+      }, interval);
+
+      return () => clearInterval(timer);
+    }
+  }, [student]);
 
   const fetchStudentAnswers = async () => {
     try {
@@ -82,8 +110,8 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
   // Chart data for performance
   const getChartData = (performance) => {
     return [
-      { name: 'Correct', value: performance.correct, color: '#10b981' },
-      { name: 'Incorrect', value: performance.incorrect, color: '#ef4444' },
+      { name: 'Correct', value: performance.correct, color: '#43e97b' },
+      { name: 'Incorrect', value: performance.incorrect, color: '#fa709a' },
       { name: 'Unattempted', value: performance.unattempted, color: '#6b7280' }
     ];
   };
@@ -94,133 +122,64 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
     return question.marks_obtained > 0 ? 'correct' : 'incorrect';
   };
 
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
   // Render linear exam view
   const renderLinearExam = () => {
     const performance = calculatePerformance(studentAnswers);
     const chartData = getChartData(performance);
 
     return (
-      <div className="linear-exam-view">
-        {/* Questions Table */}
-        <div className="questions-table-section">
-          <h3>Question-wise Performance</h3>
-          <div className="table-container">
-            <table className="questions-table">
-              <thead>
-                <tr>
-                  <th>Q.No</th>
-                  <th>Question</th>
-                  <th>Correct Option</th>
-                  <th>Attempted Option</th>
-                  <th>Marks</th>
-                  <th>Marks Obtained</th>
-                </tr>
-              </thead>
-              <tbody>
-                {studentAnswers.map((answer, index) => (
-                  <tr key={answer.id} className={`answer-row ${getAnswerStatus(answer)}`}>
-                    <td className="question-number">{index + 1}</td>
-                    <td className="question-text">{answer.question?.question_text}</td>
-                    <td className="correct-option">{answer.question?.correct_answer}</td>
-                    <td className="attempted-option">
+      <div className="questions-section">
+        <h2>Question-wise Performance</h2>
+        <div className="questions-table-wrapper">
+          <table className="questions-table">
+            <thead>
+              <tr>
+                <th>Q.No</th>
+                <th>Question</th>
+                <th>Correct Option</th>
+                <th>Attempted Option</th>
+                <th>Marks</th>
+                <th>Marks Obtained</th>
+              </tr>
+            </thead>
+            <tbody>
+              {studentAnswers.map((answer, index) => (
+                <tr key={answer.id} className={`${getAnswerStatus(answer)}-row`}>
+                  <td>
+                    <div className="question-number">Q{index + 1}</div>
+                  </td>
+                  <td className="question-text">
+                    {answer.question?.question_text || 'Question not available'}
+                  </td>
+                  <td>
+                    <div className="option-badge correct">
+                      {answer.question?.correct_answer || 'N/A'}
+                    </div>
+                  </td>
+                  <td>
+                    <div className={`option-badge ${getAnswerStatus(answer)}`}>
                       {answer.answer || 'Not Attempted'}
-                    </td>
-                    <td className="total-marks">{answer.question?.marks}</td>
-                    <td className="obtained-marks">{answer.marks_obtained || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Performance Summary */}
-        <div className="performance-summary">
-          <div className="summary-cards">
-            <div className="summary-card total">
-              <div className="card-value">{performance.total}</div>
-              <div className="card-label">Total Questions</div>
-            </div>
-            <div className="summary-card attempted">
-              <div className="card-value">{performance.correct + performance.incorrect}</div>
-              <div className="card-label">Attempted</div>
-            </div>
-            <div className="summary-card correct">
-              <div className="card-value">{performance.correct}</div>
-              <div className="card-label">Correct</div>
-            </div>
-            <div className="summary-card incorrect">
-              <div className="card-value">{performance.incorrect}</div>
-              <div className="card-label">Incorrect</div>
-            </div>
-            <div className="summary-card unattempted">
-              <div className="card-value">{performance.unattempted}</div>
-              <div className="card-label">Unattempted</div>
-            </div>
-            <div className="summary-card marks">
-              <div className="card-value">{performance.marksObtained}/{performance.totalMarks}</div>
-              <div className="card-label">Marks Obtained</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Chart Section */}
-        <div className="chart-section">
-          <div className="chart-header">
-            <h3>Performance Overview</h3>
-            <div className="chart-toggle">
-              <button 
-                className={`toggle-btn ${chartType === 'pie' ? 'active' : ''}`}
-                onClick={() => setChartType('pie')}
-              >
-                Pie Chart
-              </button>
-              <button 
-                className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`}
-                onClick={() => setChartType('bar')}
-              >
-                Bar Chart
-              </button>
-            </div>
-          </div>
-          
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height={300}>
-              {chartType === 'pie' ? (
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              ) : (
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="value" fill="#8884d8">
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              )}
-            </ResponsiveContainer>
-          </div>
+                    </div>
+                  </td>
+                  <td className="marks-cell">
+                    {answer.question?.marks || 0}
+                  </td>
+                  <td>
+                    <div className={`marks-badge ${answer.marks_obtained > 0 ? 'full-marks' : 'zero-marks'}`}>
+                      {answer.marks_obtained || 0}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -231,189 +190,147 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
     // Group answers by section
     const sections = {};
     studentAnswers.forEach(answer => {
-      const sectionId = answer.question?.section_id || 'default';
-      if (!sections[sectionId]) {
-        sections[sectionId] = [];
+      const sectionName = answer.question?.section_name || answer.question?.section_id || 'General Questions';
+      if (!sections[sectionName]) {
+        sections[sectionName] = [];
       }
-      sections[sectionId].push(answer);
+      sections[sectionName].push(answer);
     });
 
     const overallPerformance = calculatePerformance(studentAnswers);
-    const overallChartData = getChartData(overallPerformance);
 
     return (
-      <div className="section-wise-exam-view">
-        {Object.entries(sections).map(([sectionId, sectionAnswers]) => {
-          const sectionPerformance = calculatePerformance(sectionAnswers);
-          const sectionChartData = getChartData(sectionPerformance);
+      <div className="questions-section">
+        <h2>Question-wise Performance</h2>
+        <div className="sections-container">
+          {Object.entries(sections).map(([sectionName, sectionAnswers], index) => {
+            const isExpanded = expandedSections[sectionName];
+            const sectionPerformance = calculatePerformance(sectionAnswers);
+            const sectionPercentage = sectionPerformance.totalMarks > 0 ? 
+              ((sectionPerformance.marksObtained / sectionPerformance.totalMarks) * 100).toFixed(2) : 0;
 
-          return (
-            <div key={sectionId} className="section-container">
-              <h3 className="section-title">
-                {sectionId === 'default' ? 'General Questions' : `Section: ${sectionId}`}
-              </h3>
-              
-              {/* Section Questions Table */}
-              <div className="questions-table-section">
-                <div className="table-container">
-                  <table className="questions-table">
-                    <thead>
-                      <tr>
-                        <th>Q.No</th>
-                        <th>Question</th>
-                        <th>Correct Option</th>
-                        <th>Attempted Option</th>
-                        <th>Marks</th>
-                        <th>Marks Obtained</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sectionAnswers.map((answer, index) => (
-                        <tr key={answer.id} className={`answer-row ${getAnswerStatus(answer)}`}>
-                          <td className="question-number">{index + 1}</td>
-                          <td className="question-text">{answer.question?.question_text}</td>
-                          <td className="correct-option">{answer.question?.correct_answer}</td>
-                          <td className="attempted-option">
-                            {answer.answer || 'Not Attempted'}
-                          </td>
-                          <td className="total-marks">{answer.question?.marks}</td>
-                          <td className="obtained-marks">{answer.marks_obtained || 0}</td>
+            return (
+              <div key={sectionName} className="section-card" style={{ animationDelay: `${index * 0.1}s` }}>
+                <div className="section-header" onClick={() => toggleSection(sectionName)}>
+                  <div className="section-title">
+                    <h3>{sectionName}</h3>
+                    <span className="section-stats">
+                      {sectionPerformance.marksObtained}/{sectionPerformance.totalMarks} marks ({sectionPercentage}%)
+                    </span>
+                  </div>
+                  <button className="expand-btn">
+                    {isExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="section-content">
+                    <table className="questions-table">
+                      <thead>
+                        <tr>
+                          <th>Q.No</th>
+                          <th>Question</th>
+                          <th>Correct Option</th>
+                          <th>Attempted Option</th>
+                          <th>Marks</th>
+                          <th>Marks Obtained</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {sectionAnswers.map((answer, index) => (
+                          <tr key={answer.id} className={`${getAnswerStatus(answer)}-row`}>
+                            <td>
+                              <div className="question-number">Q{index + 1}</div>
+                            </td>
+                            <td className="question-text">
+                              {answer.question?.question_text || 'Question not available'}
+                            </td>
+                            <td>
+                              <div className="option-badge correct">
+                                {answer.question?.correct_answer || 'N/A'}
+                              </div>
+                            </td>
+                            <td>
+                              <div className={`option-badge ${getAnswerStatus(answer)}`}>
+                                {answer.answer || 'Not Attempted'}
+                              </div>
+                            </td>
+                            <td className="marks-cell">
+                              {answer.question?.marks || 0}
+                            </td>
+                            <td>
+                              <div className={`marks-badge ${answer.marks_obtained > 0 ? 'full-marks' : 'zero-marks'}`}>
+                                {answer.marks_obtained || 0}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
-              {/* Section Performance Summary */}
-              <div className="performance-summary">
-                <div className="summary-cards">
-                  <div className="summary-card total">
-                    <div className="card-value">{sectionPerformance.total}</div>
-                    <div className="card-label">Total Questions</div>
-                  </div>
-                  <div className="summary-card correct">
-                    <div className="card-value">{sectionPerformance.correct}</div>
-                    <div className="card-label">Correct</div>
-                  </div>
-                  <div className="summary-card incorrect">
-                    <div className="card-value">{sectionPerformance.incorrect}</div>
-                    <div className="card-label">Incorrect</div>
-                  </div>
-                  <div className="summary-card unattempted">
-                    <div className="card-value">{sectionPerformance.unattempted}</div>
-                    <div className="card-label">Unattempted</div>
-                  </div>
-                  <div className="summary-card marks">
-                    <div className="card-value">
-                      {sectionPerformance.marksObtained}/{sectionPerformance.totalMarks}
-                    </div>
-                    <div className="card-label">Marks Obtained</div>
-                  </div>
-                </div>
-              </div>
+  // Render performance charts
+  const renderPerformanceCharts = () => {
+    const overallPerformance = calculatePerformance(studentAnswers);
+    const overallChartData = getChartData(overallPerformance);
 
-              {/* Section Chart */}
-              <div className="chart-section">
-                <div className="chart-header">
-                  <h4>Section Performance</h4>
-                  <div className="chart-toggle">
-                    <button 
-                      className={`toggle-btn ${chartType === 'pie' ? 'active' : ''}`}
-                      onClick={() => setChartType('pie')}
-                    >
-                      Pie
-                    </button>
-                    <button 
-                      className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`}
-                      onClick={() => setChartType('bar')}
-                    >
-                      Bar
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={250}>
-                    {chartType === 'pie' ? (
-                      <PieChart>
-                        <Pie
-                          data={sectionChartData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          label={({ name, value }) => `${name}: ${value}`}
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {sectionChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    ) : (
-                      <BarChart data={sectionChartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" fill="#8884d8">
-                          {sectionChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    )}
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+    // For section-wise exams, calculate section performance
+    let sectionPerformanceData = [];
+    if (examType === 'section-wise') {
+      const sections = {};
+      studentAnswers.forEach(answer => {
+        const sectionName = answer.question?.section_name || answer.question?.section_id || 'General Questions';
+        if (!sections[sectionName]) {
+          sections[sectionName] = [];
+        }
+        sections[sectionName].push(answer);
+      });
 
-        {/* Overall Summary */}
-        <div className="overall-summary">
-          <h3>Overall Exam Performance</h3>
-          <div className="performance-summary">
-            <div className="summary-cards">
-              <div className="summary-card total">
-                <div className="card-value">{overallPerformance.total}</div>
-                <div className="card-label">Total Questions</div>
-              </div>
-              <div className="summary-card attempted">
-                <div className="card-value">{overallPerformance.correct + overallPerformance.incorrect}</div>
-                <div className="card-label">Attempted</div>
-              </div>
-              <div className="summary-card correct">
-                <div className="card-value">{overallPerformance.correct}</div>
-                <div className="card-label">Correct</div>
-              </div>
-              <div className="summary-card incorrect">
-                <div className="card-value">{overallPerformance.incorrect}</div>
-                <div className="card-label">Incorrect</div>
-              </div>
-              <div className="summary-card unattempted">
-                <div className="card-value">{overallPerformance.unattempted}</div>
-                <div className="card-label">Unattempted</div>
-              </div>
-              <div className="summary-card marks">
-                <div className="card-value">
-                  {overallPerformance.marksObtained}/{overallPerformance.totalMarks}
-                </div>
-                <div className="card-label">Total Marks</div>
-              </div>
-            </div>
-          </div>
+      sectionPerformanceData = Object.entries(sections).map(([sectionName, sectionAnswers]) => {
+        const performance = calculatePerformance(sectionAnswers);
+        const percentage = performance.totalMarks > 0 ? 
+          ((performance.marksObtained / performance.totalMarks) * 100).toFixed(2) : 0;
+        
+        return {
+          name: sectionName,
+          percentage: parseFloat(percentage),
+          marksObtained: performance.marksObtained,
+          totalMarks: performance.totalMarks
+        };
+      });
+    }
 
-          {/* Overall Chart */}
-          <div className="chart-section">
+    return (
+      <section className="performance-charts">
+        <h2>Performance Overview</h2>
+        <div className={`charts-grid ${examType === 'linear' ? 'single-chart' : 'dual-chart'}`}>
+          <div className="chart-card">
             <div className="chart-header">
-              <h4>Overall Performance</h4>
+              <h3>Overall Performance</h3>
+              <div className="chart-toggle">
+                <button 
+                  className={`toggle-btn ${chartType === 'pie' ? 'active' : ''}`}
+                  onClick={() => setChartType('pie')}
+                >
+                  Pie
+                </button>
+                <button 
+                  className={`toggle-btn ${chartType === 'bar' ? 'active' : ''}`}
+                  onClick={() => setChartType('bar')}
+                >
+                  Bar
+                </button>
+              </div>
             </div>
+            
             <div className="chart-container">
               <ResponsiveContainer width="100%" height={300}>
                 {chartType === 'pie' ? (
@@ -452,6 +369,88 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {examType === 'section-wise' && (
+            <div className="chart-card">
+              <h3>Section-wise Breakdown</h3>
+              <div className="section-bar-chart">
+                {sectionPerformanceData.map((section, index) => (
+                  <div key={section.name} className="section-bar-item">
+                    <div className="section-bar-info">
+                      <span className="section-bar-name">{section.name}</span>
+                      <span className="section-bar-value">{section.percentage}%</span>
+                    </div>
+                    <div className="section-bar-track">
+                      <div 
+                        className={`section-bar-fill section-bar-${(index % 3) + 1}`}
+                        style={{ width: `${section.percentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="section-bar-details">
+                      {section.marksObtained}/{section.totalMarks} marks
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  };
+
+  // Render performance summary cards
+  const renderPerformanceSummary = () => {
+    const performance = calculatePerformance(studentAnswers);
+
+    return (
+      <div className="performance-summary-cards">
+        <div className="summary-card total">
+          <div className="card-icon">📊</div>
+          <div className="card-content">
+            <div className="card-value">{performance.total}</div>
+            <div className="card-label">Total Questions</div>
+          </div>
+        </div>
+
+        <div className="summary-card correct">
+          <div className="card-icon">✅</div>
+          <div className="card-content">
+            <div className="card-value">{performance.correct}</div>
+            <div className="card-label">Correct</div>
+          </div>
+        </div>
+
+        <div className="summary-card incorrect">
+          <div className="card-icon">❌</div>
+          <div className="card-content">
+            <div className="card-value">{performance.incorrect}</div>
+            <div className="card-label">Incorrect</div>
+          </div>
+        </div>
+
+        <div className="summary-card unattempted">
+          <div className="card-icon">⏸️</div>
+          <div className="card-content">
+            <div className="card-value">{performance.unattempted}</div>
+            <div className="card-label">Unattempted</div>
+          </div>
+        </div>
+
+        <div className="summary-card marks">
+          <div className="card-icon">🎯</div>
+          <div className="card-content">
+            <div className="card-value">{performance.marksObtained}/{performance.totalMarks}</div>
+            <div className="card-label">Marks Obtained</div>
+          </div>
+        </div>
+
+        <div className="summary-card percentage">
+          <div className="card-icon">📈</div>
+          <div className="card-content">
+            <div className="card-value">{performance.percentage}%</div>
+            <div className="card-label">Accuracy</div>
+          </div>
         </div>
       </div>
     );
@@ -459,7 +458,7 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
 
   if (loading) {
     return (
-      <div className="teacher-result-details">
+      <div className="view-details-page">
         <div className="loading-container">
           <div className="spinner"></div>
           <p>Loading student details...</p>
@@ -469,69 +468,55 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
   }
 
   return (
-    <div className="teacher-result-details">
+    <div className="view-details-page">
       {/* Header Section */}
-      <div className="details-header">
-        <button onClick={onBack} className="back-button">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          Back to Results
-        </button>
-        
-        <div className="student-summary">
-          <h1>Student Performance Details</h1>
-          <div className="summary-cards-grid">
-            <div className="info-card rank">
-              <div className="card-icon">🏆</div>
-              <div className="card-content">
-                <div className="card-value">#{student.rank}</div>
-                <div className="card-label">Rank</div>
+      <header className="details-header">
+        <div className="student-summary-card">
+          <div className="summary-left">
+            <div className="student-avatar">
+              {student.name.split(' ').map(n => n[0]).join('')}
+            </div>
+            <div className="student-info">
+              <h1>{student.name}</h1>
+              <p className="student-email">{student.email}</p>
+            </div>
+          </div>
+          <div className="summary-stats-row">
+            <div className="summary-stat">
+              <div className="summary-stat-icon">🏆</div>
+              <div className="summary-stat-content">
+                <div className="summary-stat-value">{animatedStats.rank}</div>
+                <div className="summary-stat-label">Rank</div>
               </div>
             </div>
-            
-            <div className="info-card student">
-              <div className="card-icon">👤</div>
-              <div className="card-content">
-                <div className="card-value">{student.name}</div>
-                <div className="card-label">Student Name</div>
+            <div className="summary-stat">
+              <div className="summary-stat-icon">📊</div>
+              <div className="summary-stat-content">
+                <div className="summary-stat-value">{student.score}</div>
+                <div className="summary-stat-label">Score</div>
               </div>
             </div>
-            
-            <div className="info-card email">
-              <div className="card-icon">📧</div>
-              <div className="card-content">
-                <div className="card-value">{student.email}</div>
-                <div className="card-label">Email</div>
+            <div className="summary-stat">
+              <div className="summary-stat-icon">💯</div>
+              <div className="summary-stat-content">
+                <div className="summary-stat-value">{animatedStats.percentage}%</div>
+                <div className="summary-stat-label">Percentage</div>
               </div>
             </div>
-            
-            <div className="info-card score">
-              <div className="card-icon">📊</div>
-              <div className="card-content">
-                <div className="card-value">{student.score}/{examDetails.totalMarks}</div>
-                <div className="card-label">Score</div>
-              </div>
-            </div>
-            
-            <div className="info-card percentage">
-              <div className="card-icon">%</div>
-              <div className="card-content">
-                <div className="card-value">{student.percentage}%</div>
-                <div className="card-label">Percentage</div>
-              </div>
-            </div>
-            
-            <div className="info-card time">
-              <div className="card-icon">⏱️</div>
-              <div className="card-content">
-                <div className="card-value">{student.completionTime}</div>
-                <div className="card-label">Completion Time</div>
+            <div className="summary-stat">
+              <div className="summary-stat-icon">⏱️</div>
+              <div className="summary-stat-content">
+                <div className="summary-stat-value">{student.completionTime}</div>
+                <div className="summary-stat-label">Time</div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+        <button className="back-btn" onClick={onBack}>
+          <ArrowLeft size={20} />
+          <span>Back to Results</span>
+        </button>
+      </header>
 
       {/* Error Display */}
       {error && (
@@ -548,10 +533,14 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
         </div>
       )}
 
+      {/* Performance Summary Cards */}
+      {!error && studentAnswers.length > 0 && renderPerformanceSummary()}
+
       {/* Main Content */}
       {!error && studentAnswers.length > 0 && (
         <div className="details-content">
           {examType === 'linear' ? renderLinearExam() : renderSectionWiseExam()}
+          {renderPerformanceCharts()}
         </div>
       )}
 
@@ -562,6 +551,7 @@ const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
           </svg>
           <h2>No answer data available</h2>
           <p>Student answer details could not be loaded.</p>
+          <button onClick={fetchStudentAnswers} className="retry-btn">Retry</button>
         </div>
       )}
     </div>
