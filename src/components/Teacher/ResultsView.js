@@ -1,10 +1,18 @@
+// ResultsView.js
 import React, { useState, useEffect } from 'react';
+import TeacherResultDetails from './TeacherResultDetails';
 import './ResultsView.css';
 
 const ResultsView = ({ exam, onBack }) => {
   const [results, setResults] = useState([]);
+  const [filteredResults, setFilteredResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'percentage', direction: 'desc' });
+  const [refreshing, setRefreshing] = useState(false);
 
   const API_BASE = process.env.REACT_APP_API_BASE || process.env.REACT_APP_BACKEND_URL;
 
@@ -12,9 +20,27 @@ const ResultsView = ({ exam, onBack }) => {
     fetchResults();
   }, [exam.id]);
 
+  useEffect(() => {
+    // Filter results based on search term
+    let filtered = results;
+    
+    if (searchTerm) {
+      filtered = results.filter(attempt => 
+        attempt.student?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        attempt.student?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Sort results
+    const sorted = sortResults(filtered, sortConfig.key, sortConfig.direction);
+    setFilteredResults(sorted);
+  }, [results, searchTerm, sortConfig]);
+
   const fetchResults = async () => {
     try {
       setError(null);
+      setLoading(true);
+      setRefreshing(true);
 
       if (!API_BASE) {
         throw new Error('Backend URL not configured');
@@ -49,6 +75,7 @@ const ResultsView = ({ exam, onBack }) => {
       setResults([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -83,6 +110,123 @@ const ResultsView = ({ exam, onBack }) => {
       console.error('Error downloading results:', error);
       alert(`Error downloading results: ${error.message}`);
     }
+  };
+
+  const handleViewDetails = (attempt) => {
+    // Calculate rank and other details for the student
+    const studentsWithRank = results
+      .map(a => {
+        const totalMarks = a.answers.reduce((sum, answer) => 
+          sum + (answer.question ? answer.question.marks : 0), 0);
+        const obtainedMarks = a.answers.reduce((sum, answer) => 
+          sum + (answer.marks_obtained || 0), 0);
+        const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+        return { ...a, obtainedMarks, totalMarks, percentage };
+      })
+      .sort((a, b) => b.percentage - a.percentage);
+
+    const studentRank = studentsWithRank.findIndex(a => a.id === attempt.id) + 1;
+    
+    const studentData = {
+      name: attempt.student?.name || 'N/A',
+      email: attempt.student?.email || 'N/A',
+      rank: studentRank,
+      attemptId: attempt.id,
+      score: attempt.obtainedMarks || 0,
+      percentage: (attempt.percentage || 0).toFixed(2),
+      completionTime: attempt.end_time ? new Date(attempt.end_time).toLocaleString() : 'Not completed'
+    };
+
+    setSelectedStudent(studentData);
+    setShowDetails(true);
+  };
+
+  const handleSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const sortResults = (data, key, direction) => {
+    return [...data].sort((a, b) => {
+      // First, calculate the metrics for both items
+      const totalMarksA = a.answers.reduce((sum, answer) => 
+        sum + (answer.question ? answer.question.marks : 0), 0);
+      const obtainedMarksA = a.answers.reduce((sum, answer) => 
+        sum + (answer.marks_obtained || 0), 0);
+      const percentageA = totalMarksA > 0 ? (obtainedMarksA / totalMarksA) * 100 : 0;
+
+      const totalMarksB = b.answers.reduce((sum, answer) => 
+        sum + (answer.question ? answer.question.marks : 0), 0);
+      const obtainedMarksB = b.answers.reduce((sum, answer) => 
+        sum + (answer.marks_obtained || 0), 0);
+      const percentageB = totalMarksB > 0 ? (obtainedMarksB / totalMarksB) * 100 : 0;
+
+      // Calculate ranks for both items
+      const allStudents = [...data].map(student => {
+        const totalMarks = student.answers.reduce((sum, answer) => 
+          sum + (answer.question ? answer.question.marks : 0), 0);
+        const obtainedMarks = student.answers.reduce((sum, answer) => 
+          sum + (answer.marks_obtained || 0), 0);
+        const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+        return { ...student, obtainedMarks, percentage };
+      }).sort((x, y) => y.percentage - x.percentage);
+
+      const rankA = allStudents.findIndex(student => student.id === a.id) + 1;
+      const rankB = allStudents.findIndex(student => student.id === b.id) + 1;
+
+      let aValue, bValue;
+
+      switch (key) {
+        case 'rank':
+          aValue = rankA;
+          bValue = rankB;
+          break;
+        case 'name':
+          aValue = a.student?.name?.toLowerCase() || '';
+          bValue = b.student?.name?.toLowerCase() || '';
+          break;
+        case 'email':
+          aValue = a.student?.email?.toLowerCase() || '';
+          bValue = b.student?.email?.toLowerCase() || '';
+          break;
+        case 'percentage':
+          aValue = percentageA;
+          bValue = percentageB;
+          break;
+        case 'completionTime':
+          aValue = a.end_time ? new Date(a.end_time).getTime() : 0;
+          bValue = b.end_time ? new Date(b.end_time).getTime() : 0;
+          break;
+        case 'score':
+          aValue = obtainedMarksA;
+          bValue = obtainedMarksB;
+          break;
+        default:
+          aValue = 0;
+          bValue = 0;
+      }
+
+      if (aValue < bValue) {
+        return direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return '↕️';
+    }
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  const handleRefresh = () => {
+    fetchResults();
   };
 
   const getPercentageColor = (percent) => {
@@ -137,6 +281,23 @@ const ResultsView = ({ exam, onBack }) => {
           <p>Loading results...</p>
         </div>
       </div>
+    );
+  }
+
+  // If showing student details, render the TeacherResultDetails component
+  if (showDetails && selectedStudent) {
+    return (
+      <TeacherResultDetails
+        student={selectedStudent}
+        examDetails={{
+          id: exam.id,
+          totalMarks: stats?.totalMarks || 0,
+          title: exam.title,
+          type: exam.question_organization
+        }}
+        examType={exam.question_organization || 'linear'}
+        onBack={() => setShowDetails(false)}
+      />
     );
   }
 
@@ -284,31 +445,119 @@ const ResultsView = ({ exam, onBack }) => {
           )}
 
           <div className="results-table-section">
-            <h2>Student Results ({results.length} students)</h2>
+            <div className="table-controls">
+              <div className="search-control">
+                <div className="search-input-wrapper">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search by email or name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-input"
+                  />
+                  {searchTerm && (
+                    <button 
+                      className="clear-search" 
+                      onClick={() => setSearchTerm('')}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="search-info">
+                  Showing {filteredResults.length} of {results.length} students
+                  {searchTerm && (
+                    <span className="search-term"> for "{searchTerm}"</span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="controls-right">
+                <button 
+                  onClick={handleRefresh} 
+                  className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
+                  disabled={refreshing}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 4v6h-6M1 20v-6h6" />
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                  </svg>
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
             <div className="table-wrapper">
               <table className="results-table">
                 <thead>
                   <tr>
-                    <th>Rank</th>
-                    <th>Student Name</th>
-                    <th>Email</th>
-                    <th>Score</th>
+                    <th 
+                      onClick={() => handleSort('rank')}
+                      className="sortable-header"
+                    >
+                      Rank {getSortIcon('rank')}
+                    </th>
+                    <th 
+                      onClick={() => handleSort('name')}
+                      className="sortable-header"
+                    >
+                      Student Name {getSortIcon('name')}
+                    </th>
+                    <th 
+                      onClick={() => handleSort('email')}
+                      className="sortable-header"
+                    >
+                      Email {getSortIcon('email')}
+                    </th>
+                    <th 
+                      onClick={() => handleSort('score')}
+                      className="sortable-header"
+                    >
+                      Score {getSortIcon('score')}
+                    </th>
                     <th>Total Marks</th>
-                    <th>Percentage</th>
-                    <th>Completion Time</th>
+                    <th 
+                      onClick={() => handleSort('percentage')}
+                      className="sortable-header"
+                    >
+                      Percentage {getSortIcon('percentage')}
+                    </th>
+                    <th 
+                      onClick={() => handleSort('completionTime')}
+                      className="sortable-header"
+                    >
+                      Completion Time {getSortIcon('completionTime')}
+                    </th>
+                    <th>View Details</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {results
-                    .map(attempt => {
+                  {filteredResults
+                    .map((attempt, index) => {
                       const totalMarks = attempt.answers.reduce((sum, answer) =>
                         sum + (answer.question ? answer.question.marks : 0), 0);
                       const obtainedMarks = attempt.answers.reduce((sum, answer) =>
                         sum + (answer.marks_obtained || 0), 0);
                       const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
-                      return { ...attempt, obtainedMarks, totalMarks, percentage };
+                      
+                      // Calculate actual rank based on percentage
+                      const allStudents = [...results].map(student => {
+                        const totalMarks = student.answers.reduce((sum, answer) => 
+                          sum + (answer.question ? answer.question.marks : 0), 0);
+                        const obtainedMarks = student.answers.reduce((sum, answer) => 
+                          sum + (answer.marks_obtained || 0), 0);
+                        const percentage = totalMarks > 0 ? (obtainedMarks / totalMarks) * 100 : 0;
+                        return { ...student, obtainedMarks, percentage };
+                      }).sort((a, b) => b.percentage - a.percentage);
+
+                      const rank = allStudents.findIndex(student => student.id === attempt.id) + 1;
+                      
+                      return { ...attempt, obtainedMarks, totalMarks, percentage, rank };
                     })
-                    .sort((a, b) => b.percentage - a.percentage)
                     .map((attempt, index) => {
                       const completionTime = attempt.end_time ?
                         new Date(attempt.end_time).toLocaleString() : 'Not completed';
@@ -317,10 +566,10 @@ const ResultsView = ({ exam, onBack }) => {
                         <tr key={attempt.id} className="table-row" style={{ animationDelay: `${index * 0.05}s` }}>
                           <td>
                             <div className="rank-badge">
-                              {index + 1 === 1 && '🥇'}
-                              {index + 1 === 2 && '🥈'}
-                              {index + 1 === 3 && '🥉'}
-                              {index + 1 > 3 && `#${index + 1}`}
+                              {attempt.rank === 1 && '🥇'}
+                              {attempt.rank === 2 && '🥈'}
+                              {attempt.rank === 3 && '🥉'}
+                              {attempt.rank > 3 && `#${attempt.rank}`}
                             </div>
                           </td>
                           <td>
@@ -342,12 +591,37 @@ const ResultsView = ({ exam, onBack }) => {
                             </div>
                           </td>
                           <td className="time-cell">{completionTime}</td>
+                          <td>
+                            <button 
+                              className="btn-view-details"
+                              onClick={() => handleViewDetails(attempt)}
+                            >
+                              View Details
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
                 </tbody>
               </table>
             </div>
+
+            {filteredResults.length === 0 && searchTerm && (
+              <div className="no-search-results">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <h3>No students found</h3>
+                <p>No students match your search for "{searchTerm}"</p>
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="clear-search-btn"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
