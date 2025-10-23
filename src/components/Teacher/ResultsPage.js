@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, RefreshCw, Search, ArrowUpDown } from 'lucide-react';
 import TeacherResultDetails from './TeacherResultDetails';
-import './ResultsView.css';
+import './ResultsPage.css';
 
 const ResultsPage = ({ exam, onBack }) => {
   const [results, setResults] = useState([]);
@@ -689,4 +689,4 @@ const ResultsPage = ({ exam, onBack }) => {
   );
 };
 
-export default ResultsView;
+export default ResultsPage;
