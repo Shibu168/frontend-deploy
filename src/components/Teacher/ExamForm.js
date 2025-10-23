@@ -20,6 +20,13 @@ const ExamForm = ({ onExamCreated }) => {
   const [sharedEmailInput, setSharedEmailInput] = useState('');
   const [showSectionConfig, setShowSectionConfig] = useState(false); // New state for section config
   const [sections, setSections] = useState([{ id: 'section1', name: 'Section 1', description: '' }]); // Default sections
+  const [navigationRules, setNavigationRules] = useState({
+    allow_back: true,
+    allow_skip: true,
+    must_complete_section: false,
+    allow_section_review: true,
+    section_time_limit: null
+  }); // New state for navigation rules
 
   const convertToUTC = (localDateTimeString) => {
     if (!localDateTimeString) return '';
@@ -56,6 +63,14 @@ const ExamForm = ({ onExamCreated }) => {
         [name]: value
       });
     }
+  };
+
+  // Handle navigation rules changes
+  const handleNavigationRuleChange = (rule, value) => {
+    setNavigationRules(prev => ({
+      ...prev,
+      [rule]: value
+    }));
   };
 
   // Add new section
@@ -109,11 +124,7 @@ const ExamForm = ({ onExamCreated }) => {
       // Prepare section config if section-wise
       const sectionConfig = formData.question_organization === 'section_wise' ? {
         sections: sections,
-        navigation_rules: {
-          allow_back: true,
-          allow_skip: true,
-          must_complete_section: false
-        }
+        navigation_rules: navigationRules
       } : null;
 
       const payload = {
@@ -160,6 +171,13 @@ const ExamForm = ({ onExamCreated }) => {
             section_config: null
           });
           setSections([{ id: 'section1', name: 'Section 1', description: '' }]);
+          setNavigationRules({
+            allow_back: true,
+            allow_skip: true,
+            must_complete_section: false,
+            allow_section_review: true,
+            section_time_limit: null
+          });
           setShowSectionConfig(false);
         }
       } else {
@@ -195,6 +213,13 @@ const ExamForm = ({ onExamCreated }) => {
       section_config: null
     });
     setSections([{ id: 'section1', name: 'Section 1', description: '' }]);
+    setNavigationRules({
+      allow_back: true,
+      allow_skip: true,
+      must_complete_section: false,
+      allow_section_review: true,
+      section_time_limit: null
+    });
     setShowSectionConfig(false);
     setSharedEmailInput('');
   };
@@ -318,62 +343,186 @@ const ExamForm = ({ onExamCreated }) => {
 
             {/* Section Configuration (shown only for section-wise) */}
             {showSectionConfig && (
-              <div className="form-group section-config">
-                <label className="form-label">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <path d="M3 9h18M9 21V9" />
-                  </svg>
-                  Exam Sections
-                </label>
-                <div className="sections-list">
-                  {sections.map((section, index) => (
-                    <div key={section.id} className="section-item">
-                      <div className="section-header">
-                        <span className="section-number">Section {index + 1}</span>
-                        {sections.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeSection(index)}
-                            className="remove-section-btn"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M18 6L6 18M6 6l12 12" />
-                            </svg>
-                          </button>
-                        )}
+              <>
+                <div className="form-group section-config">
+                  <label className="form-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <path d="M3 9h18M9 21V9" />
+                    </svg>
+                    Exam Sections
+                  </label>
+                  <div className="sections-list">
+                    {sections.map((section, index) => (
+                      <div key={section.id} className="section-item">
+                        <div className="section-header">
+                          <span className="section-number">Section {index + 1}</span>
+                          {sections.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeSection(index)}
+                              className="remove-section-btn"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <div className="section-fields">
+                          <input
+                            type="text"
+                            value={section.name}
+                            onChange={(e) => updateSection(index, 'name', e.target.value)}
+                            className="form-input"
+                            placeholder="Section name"
+                            required
+                          />
+                          <input
+                            type="text"
+                            value={section.description}
+                            onChange={(e) => updateSection(index, 'description', e.target.value)}
+                            className="form-input"
+                            placeholder="Section description (optional)"
+                          />
+                        </div>
                       </div>
-                      <div className="section-fields">
-                        <input
-                          type="text"
-                          value={section.name}
-                          onChange={(e) => updateSection(index, 'name', e.target.value)}
-                          className="form-input"
-                          placeholder="Section name"
-                          required
-                        />
-                        <input
-                          type="text"
-                          value={section.description}
-                          onChange={(e) => updateSection(index, 'description', e.target.value)}
-                          className="form-input"
-                          placeholder="Section description (optional)"
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    className="add-section-btn"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Add Another Section
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={addSection}
-                  className="add-section-btn"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Add Another Section
-                </button>
-              </div>
+
+                {/* Navigation Rules Section */}
+                <div className="form-group navigation-rules">
+                  <label className="form-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    Navigation Rules
+                  </label>
+                  
+                  <div className="navigation-options">
+                    <div className="navigation-option">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={navigationRules.allow_back}
+                          onChange={(e) => handleNavigationRuleChange('allow_back', e.target.checked)}
+                        />
+                        <span className="checkmark"></span>
+                        <div className="checkbox-content">
+                          <strong>Allow going back to previous sections</strong>
+                          <p>Students can return to sections they've already visited</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="navigation-option">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={navigationRules.allow_skip}
+                          onChange={(e) => handleNavigationRuleChange('allow_skip', e.target.checked)}
+                        />
+                        <span className="checkmark"></span>
+                        <div className="checkbox-content">
+                          <strong>Allow skipping questions</strong>
+                          <p>Students can skip questions and return to them later</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="navigation-option">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={navigationRules.must_complete_section}
+                          onChange={(e) => handleNavigationRuleChange('must_complete_section', e.target.checked)}
+                        />
+                        <span className="checkmark"></span>
+                        <div className="checkbox-content">
+                          <strong>Must complete section before proceeding</strong>
+                          <p>Students must answer all questions in a section before moving to the next</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="navigation-option">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={navigationRules.allow_section_review}
+                          onChange={(e) => handleNavigationRuleChange('allow_section_review', e.target.checked)}
+                        />
+                        <span className="checkmark"></span>
+                        <div className="checkbox-content">
+                          <strong>Allow section review</strong>
+                          <p>Students can review and change answers within the current section</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="navigation-option time-limit">
+                      <label className="form-label">Section Time Limit (optional)</label>
+                      <div className="time-limit-input">
+                        <input
+                          type="number"
+                          value={navigationRules.section_time_limit || ''}
+                          onChange={(e) => handleNavigationRuleChange('section_time_limit', e.target.value ? parseInt(e.target.value) : null)}
+                          className="form-input"
+                          placeholder="Minutes per section"
+                          min="1"
+                        />
+                        <span className="time-unit">minutes</span>
+                      </div>
+                      <small className="form-help">
+                        Set a time limit for each section. Leave empty for no section time limits.
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Navigation Rules Summary */}
+                  <div className="rules-summary">
+                    <h4>Navigation Summary:</h4>
+                    <ul>
+                      <li>
+                        {navigationRules.allow_back ? 
+                          "✅ Students can go back to previous sections" : 
+                          "❌ Students cannot go back to previous sections"}
+                      </li>
+                      <li>
+                        {navigationRules.allow_skip ? 
+                          "✅ Students can skip questions" : 
+                          "❌ Students cannot skip questions"}
+                      </li>
+                      <li>
+                        {navigationRules.must_complete_section ? 
+                          "✅ Students must complete each section before proceeding" : 
+                          "❌ Students can proceed without completing sections"}
+                      </li>
+                      <li>
+                        {navigationRules.allow_section_review ? 
+                          "✅ Students can review answers within sections" : 
+                          "❌ Students cannot review answers within sections"}
+                      </li>
+                      <li>
+                        {navigationRules.section_time_limit ? 
+                          `⏱️ ${navigationRules.section_time_limit} minutes per section` : 
+                          "⏱️ No section time limits"}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </>
             )}
 
             <div className="form-row">
@@ -629,6 +778,30 @@ const ExamForm = ({ onExamCreated }) => {
                     </div>
                   </div>
                 </div>
+                {createdExam?.question_organization === 'section_wise' && (
+                  <>
+                    <div className="detail-item">
+                      <div className="detail-icon">🔀</div>
+                      <div>
+                        <div className="detail-label">Navigation</div>
+                        <div className="detail-value">
+                          {createdExam?.section_config?.navigation_rules?.allow_back ? 'Allow Back' : 'No Back Navigation'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-icon">⏱️</div>
+                      <div>
+                        <div className="detail-label">Section Time Limit</div>
+                        <div className="detail-value">
+                          {createdExam?.section_config?.navigation_rules?.section_time_limit 
+                            ? `${createdExam.section_config.navigation_rules.section_time_limit} min/section` 
+                            : 'No limit'}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="detail-item">
                   <div className="detail-icon">⏱️</div>
                   <div>

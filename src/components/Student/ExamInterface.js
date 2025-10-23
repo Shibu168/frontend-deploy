@@ -3,8 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import './ExamInterface.css';
 
 const ExamInterface = ({ exam, onExamComplete, onBack }) => {
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [sectionProgress, setSectionProgress] = useState({});
+  const [submittedSections, setSubmittedSections] = useState([]);
   const timerRef = useRef(null);
   const answersRef = useRef({});
   const location = useLocation();
@@ -319,12 +322,72 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     handleSubmit(true, violationType);
   };
 
+  // Get exam organization type
+  const getExamOrganization = () => {
+    if (!examData) return 'linear';
+    return examData.organization || 
+           examData.exam?.question_organization || 
+           'linear';
+  };
+
+  // Get all questions (for linear exams)
   const getQuestions = () => {
     if (!examData) return [];
     return examData.questions || 
            examData.exam?.questions || 
            examData.questionSet || 
            [];
+  };
+
+  // Get sections (for section-wise exams)
+  const getSections = () => {
+    if (!examData) return [];
+    
+    if (getExamOrganization() === 'section_wise') {
+      return examData.sections || 
+             examData.exam?.sections || 
+             examData.section_config?.sections || 
+             [];
+    }
+    
+    return [];
+  };
+
+  // Get current section
+  const getCurrentSection = () => {
+    const sections = getSections();
+    return sections[currentSectionIndex] || null;
+  };
+
+  // Get questions for current section
+  const getCurrentSectionQuestions = () => {
+    if (getExamOrganization() === 'linear') {
+      return getQuestions();
+    }
+    
+    const currentSection = getCurrentSection();
+    return currentSection?.questions || [];
+  };
+
+  // Get current question
+  const getCurrentQuestion = () => {
+    const questions = getCurrentSectionQuestions();
+    return questions[currentQuestionIndex] || null;
+  };
+
+  // Get total questions count
+  const getTotalQuestionsCount = () => {
+    if (getExamOrganization() === 'linear') {
+      return getQuestions().length;
+    }
+    
+    const sections = getSections();
+    return sections.reduce((total, section) => total + (section.questions?.length || 0), 0);
+  };
+
+  // Get answered questions count
+  const getAnsweredQuestionsCount = () => {
+    return Object.keys(answers).length;
   };
 
   const getExamTitle = () => {
@@ -395,7 +458,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   // SIMPLE Start Exam function
   const startExam = async () => {
-    if (!examData || getQuestions().length === 0) {
+    if (!examData || getTotalQuestionsCount() === 0) {
       alert('Exam data is not available. Please try again.');
       return;
     }
@@ -444,15 +507,88 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   };
 
   const handleNext = () => {
-    const questions = getQuestions();
+    const questions = getCurrentSectionQuestions();
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      // Move to next section if available
+      const sections = getSections();
+      if (currentSectionIndex < sections.length - 1) {
+        setCurrentSectionIndex(prev => prev + 1);
+        setCurrentQuestionIndex(0);
+      }
     }
   };
 
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
+    } else {
+      // Move to previous section if available
+      if (currentSectionIndex > 0) {
+        const sections = getSections();
+        const prevSectionQuestions = sections[currentSectionIndex - 1]?.questions || [];
+        setCurrentSectionIndex(prev => prev - 1);
+        setCurrentQuestionIndex(prevSectionQuestions.length - 1);
+      }
+    }
+  };
+
+  // Navigate to specific section and question
+  const navigateToQuestion = (sectionIndex, questionIndex) => {
+    if (isPaused) return;
+    
+    setCurrentSectionIndex(sectionIndex);
+    setCurrentQuestionIndex(questionIndex);
+  };
+
+  // Submit current section
+  const handleSubmitSection = async () => {
+    const currentSection = getCurrentSection();
+    if (!currentSection) return;
+
+    try {
+      const API_BASE = process.env.REACT_APP_BACKEND_URL;
+      const token = localStorage.getItem('token');
+      const examId = getExamId();
+
+      const sectionAnswers = Object.entries(answers).filter(([questionId, answer]) => {
+        const question = getCurrentSectionQuestions().find(q => q.id === parseInt(questionId));
+        return question;
+      });
+
+      const response = await fetch(`${API_BASE}/api/student/exams/${examId}/sections/${currentSection.id}/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          attemptId: attemptData?.attemptId,
+          sessionToken: attemptData?.sessionToken,
+          answers: sectionAnswers.map(([questionId, answer]) => ({
+            questionId: parseInt(questionId),
+            answer: answer
+          }))
+        })
+      });
+
+      if (response.ok) {
+        setSubmittedSections(prev => [...prev, currentSection.id]);
+        alert(`Section "${currentSection.name}" submitted successfully!`);
+        
+        // Move to next section if available
+        const sections = getSections();
+        if (currentSectionIndex < sections.length - 1) {
+          setCurrentSectionIndex(prev => prev + 1);
+          setCurrentQuestionIndex(0);
+        }
+      } else {
+        throw new Error('Failed to submit section');
+      }
+    } catch (error) {
+      console.error('Error submitting section:', error);
+      alert('Error submitting section. Please try again.');
     }
   };
 
@@ -595,7 +731,29 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     setShowWarningModal(false);
   };
 
-  const questions = getQuestions();
+  const isLastSection = () => {
+    const sections = getSections();
+    return currentSectionIndex === sections.length - 1;
+  };
+
+  const isLastQuestionInSection = () => {
+    const questions = getCurrentSectionQuestions();
+    return currentQuestionIndex === questions.length - 1;
+  };
+
+  const isSectionSubmitted = (sectionId) => {
+    return submittedSections.includes(sectionId);
+  };
+
+  const getProgressPercentage = () => {
+    const totalQuestions = getTotalQuestionsCount();
+    const answeredQuestions = getAnsweredQuestionsCount();
+    return totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+  };
+
+  const questions = getCurrentSectionQuestions();
+  const sections = getSections();
+  const isSectionWise = getExamOrganization() === 'section_wise';
 
   // Show loading state while waiting for exam data
   if (!examData) {
@@ -611,7 +769,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     );
   }
 
-  if (questions.length === 0) {
+  if (getTotalQuestionsCount() === 0) {
     return (
       <div className="exam-error">
         <h2>Exam Configuration Error</h2>
@@ -633,15 +791,42 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           
           <div className="exam-info">
             <p><strong>Duration:</strong> {validatedDuration} minutes</p>
-            <p><strong>Total Questions:</strong> {questions.length}</p>
+            <p><strong>Total Questions:</strong> {getTotalQuestionsCount()}</p>
+            {isSectionWise && (
+              <p><strong>Sections:</strong> {sections.length}</p>
+            )}
+            <p><strong>Organization:</strong> {isSectionWise ? 'Section-wise' : 'Linear'}</p>
             <p><strong>Full Screen:</strong> <span style={{color: 'red', fontWeight: 'bold'}}>MANDATORY</span></p>
             <p><strong>Proctoring:</strong> Enabled (Max {MAX_TAB_SWITCHES} tab switches allowed)</p>
           </div>
+
+          {isSectionWise && (
+            <div className="sections-preview">
+              <h4>Exam Sections:</h4>
+              <div className="sections-list">
+                {sections.map((section, index) => (
+                  <div key={section.id} className="section-preview">
+                    <div className="section-preview-header">
+                      <span className="section-number">Section {index + 1}</span>
+                      <span className="questions-count">{section.questions?.length || 0} questions</span>
+                    </div>
+                    <h5>{section.name}</h5>
+                    {section.description && (
+                      <p className="section-description">{section.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="instructions-list">
             <h4>Important Instructions:</h4>
             <ul>
               <li>You have <strong>{validatedDuration} minutes</strong> to complete the exam</li>
+              {isSectionWise && (
+                <li><strong>Section Navigation:</strong> {examData.navigation_rules?.allow_back ? 'You can go back to previous sections' : 'You cannot go back to previous sections'}</li>
+              )}
               <li><strong style={{color: 'red'}}>FULL SCREEN IS MANDATORY:</strong> Exam will pause if you exit full screen</li>
               <li><strong>Proctoring is active:</strong> Maximum {MAX_TAB_SWITCHES} tab switches allowed</li>
               <li>Do not switch tabs, open new windows, or use developer tools</li>
@@ -663,7 +848,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestion = getCurrentQuestion();
+  const currentSection = getCurrentSection();
 
   if (!currentQuestion) {
     return (
@@ -748,7 +934,15 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       </div>
 
       <div className="exam-header">
-        <h2>{getExamTitle()}</h2>
+        <div className="exam-title-section">
+          <h2>{getExamTitle()}</h2>
+          {isSectionWise && currentSection && (
+            <div className="current-section-info">
+              <span className="section-badge">Section {currentSectionIndex + 1} of {sections.length}</span>
+              <span className="section-name">{currentSection.name}</span>
+            </div>
+          )}
+        </div>
         <div className="exam-timer">
           {isPaused ? (
             <span style={{color: 'orange', fontWeight: 'bold'}}>⏸️ EXAM PAUSED - Time: {formatTime(timeLeft)}</span>
@@ -764,18 +958,54 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="progress-bar">
         <div 
           className="progress-fill"
-          style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+          style={{ width: `${getProgressPercentage()}%` }}
         ></div>
         <div className="progress-text">
-          Question {currentQuestionIndex + 1} of {questions.length}
-          {` (${Object.keys(answers).length} answered)`}
+          {isSectionWise ? (
+            <>
+              Section {currentSectionIndex + 1} of {sections.length} • 
+              Question {currentQuestionIndex + 1} of {questions.length} •
+              {` ${getAnsweredQuestionsCount()}/${getTotalQuestionsCount()} answered`}
+            </>
+          ) : (
+            <>
+              Question {currentQuestionIndex + 1} of {questions.length}
+              {` (${getAnsweredQuestionsCount()} answered)`}
+            </>
+          )}
           {isPaused && <span style={{color: 'orange', marginLeft: '10px'}}>⏸️ PAUSED</span>}
         </div>
       </div>
 
+      {isSectionWise && (
+        <div className="sections-navigation">
+          <div className="sections-tabs">
+            {sections.map((section, index) => (
+              <button
+                key={section.id}
+                className={`section-tab ${index === currentSectionIndex ? 'active' : ''} ${
+                  isSectionSubmitted(section.id) ? 'submitted' : ''
+                }`}
+                onClick={() => navigateToQuestion(index, 0)}
+                disabled={isPaused || (!examData.navigation_rules?.allow_back && index < currentSectionIndex)}
+              >
+                <span className="section-tab-number">{index + 1}</span>
+                <span className="section-tab-name">{section.name}</span>
+                {isSectionSubmitted(section.id) && (
+                  <span className="submitted-badge">✓</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="question-container">
         <div className="question-header">
-          <h3>Question {currentQuestionIndex + 1}</h3>
+          <h3>
+            {isSectionWise ? `Section ${currentSectionIndex + 1} - ` : ''}
+            Question {currentQuestionIndex + 1}
+          </h3>
           {isPaused && (
             <div className="paused-overlay">
               <p>Exam is paused. Return to full screen to continue.</p>
@@ -814,18 +1044,39 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       <div className="navigation-buttons">
         <button 
           onClick={handlePrevious}
-          disabled={currentQuestionIndex === 0 || isPaused}
+          disabled={
+            (currentQuestionIndex === 0 && currentSectionIndex === 0) || 
+            isPaused ||
+            (!examData.navigation_rules?.allow_back && currentSectionIndex > 0)
+          }
           className="btn btn-secondary"
         >
           Previous
         </button>
         
         <div className="question-counter">
-          {currentQuestionIndex + 1} / {questions.length}
+          {isSectionWise ? (
+            <>
+              Section {currentSectionIndex + 1}/{sections.length} • 
+              Q{currentQuestionIndex + 1}/{questions.length}
+            </>
+          ) : (
+            <>
+              {currentQuestionIndex + 1} / {questions.length}
+            </>
+          )}
           {isPaused && <span style={{color: 'orange'}}> (Paused)</span>}
         </div>
 
-        {currentQuestionIndex === questions.length - 1 ? (
+        {isSectionWise && isLastQuestionInSection() && !isLastSection() ? (
+          <button 
+            onClick={handleSubmitSection}
+            disabled={isPaused}
+            className="btn btn-warning"
+          >
+            Submit Section & Continue
+          </button>
+        ) : currentQuestionIndex === questions.length - 1 && (isLastSection() || !isSectionWise) ? (
           <button 
             onClick={() => handleSubmit(false)}
             disabled={loading || isSubmitting || isPaused}
@@ -845,7 +1096,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       </div>
 
       <div className="quick-navigation">
-        <h4>Questions:</h4>
+        <h4>Questions{isSectionWise ? ` (Section ${currentSectionIndex + 1})` : ''}:</h4>
         <div className="question-dots">
           {questions.map((question, index) => (
             <button
@@ -853,7 +1104,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
               className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
                 answers[question.id] ? 'answered' : ''
               }`}
-              onClick={() => !isPaused && setCurrentQuestionIndex(index)}
+              onClick={() => !isPaused && navigateToQuestion(currentSectionIndex, index)}
               disabled={isPaused}
             >
               {index + 1}
