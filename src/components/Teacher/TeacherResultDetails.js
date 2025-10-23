@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import './ViewDetailsPage.css';
+import './TeacherResultDetails.css';
 
 const TeacherResultDetails = ({ student, examDetails, onBack, examType }) => {
   const [studentAnswers, setStudentAnswers] = useState([]);
