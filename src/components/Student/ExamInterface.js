@@ -1,13 +1,331 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './ExamInterface.css';
+import './ProgressTab.css';
 
+// Progress Tab Component
+const ProgressTab = ({ 
+  examData, 
+  answers, 
+  currentSectionIndex, 
+  currentQuestionIndex,
+  isSectionWise = false,
+  visitedQuestions = [] 
+}) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [selectedSection, setSelectedSection] = useState(null);
+
+  // Calculate progress data
+  const calculateProgress = () => {
+    if (!examData) return null;
+
+    if (isSectionWise) {
+      const sections = examData.sections || examData.exam?.sections || [];
+      return sections.map((section, index) => {
+        const sectionQuestions = section.questions || [];
+        const answered = sectionQuestions.filter(q => answers[q.id]).length;
+        const visited = sectionQuestions.filter(q => 
+          visitedQuestions.includes(q.id) && !answers[q.id]
+        ).length;
+        const unanswered = sectionQuestions.length - answered - visited;
+
+        return {
+          id: section.id,
+          name: section.name,
+          total: sectionQuestions.length,
+          answered,
+          visited,
+          unanswered,
+          progress: sectionQuestions.length > 0 ? (answered / sectionQuestions.length) * 100 : 0
+        };
+      });
+    } else {
+      // Linear exam progress
+      const questions = examData.questions || examData.exam?.questions || [];
+      const answered = Object.keys(answers).length;
+      const visited = visitedQuestions.filter(qId => !answers[qId]).length;
+      const unanswered = questions.length - answered - visited;
+
+      return {
+        total: questions.length,
+        answered,
+        visited,
+        unanswered,
+        progress: questions.length > 0 ? (answered / questions.length) * 100 : 0
+      };
+    }
+  };
+
+  const progressData = calculateProgress();
+  const isFullScreen = !!(
+    document.fullscreenElement ||
+    document.webkitFullscreenElement ||
+    document.mozFullScreenElement ||
+    document.msFullscreenElement
+  );
+
+  // Auto-expand in full screen, collapse when not
+  useEffect(() => {
+    setIsExpanded(isFullScreen);
+  }, [isFullScreen]);
+
+  // Set default selected section for section-wise exams
+  useEffect(() => {
+    if (isSectionWise && progressData && progressData.length > 0) {
+      setSelectedSection(currentSectionIndex);
+    }
+  }, [isSectionWise, progressData, currentSectionIndex]);
+
+  if (!progressData) return null;
+
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  const getSectionProgress = (section) => (
+    <div className="section-progress-details">
+      <div className="progress-row">
+        <span className="progress-label">Answered:</span>
+        <span className="progress-count answered">
+          {section.answered}/{section.total}
+        </span>
+      </div>
+      <div className="progress-row">
+        <span className="progress-label">Visited:</span>
+        <span className="progress-count visited">
+          {section.visited}/{section.total}
+        </span>
+      </div>
+      <div className="progress-row">
+        <span className="progress-label">Unanswered:</span>
+        <span className="progress-count unanswered">
+          {section.unanswered}/{section.total}
+        </span>
+      </div>
+      <div className="progress-bar-mini">
+        <div 
+          className="progress-fill-mini"
+          style={{ width: `${section.progress}%` }}
+        ></div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`progress-tab ${isExpanded ? 'expanded' : 'collapsed'} ${isFullScreen ? 'full-screen' : ''}`}>
+      {/* Header */}
+      <div className="progress-tab-header" onClick={toggleExpand}>
+        <div className="progress-tab-title">
+          <span className="progress-icon">📊</span>
+          {isExpanded && <span>Exam Progress</span>}
+        </div>
+        <div className="progress-tab-actions">
+          {isExpanded && (
+            <span className="progress-percentage">
+              {isSectionWise 
+                ? `${Math.round(progressData.reduce((acc, section) => acc + section.answered, 0) / progressData.reduce((acc, section) => acc + section.total, 0) * 100)}%`
+                : `${Math.round(progressData.progress)}%`
+              }
+            </span>
+          )}
+          <button className="progress-toggle-btn">
+            {isExpanded ? '▲' : '▼'}
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {isExpanded && (
+        <div className="progress-tab-content">
+          {isSectionWise ? (
+            // Section-wise progress
+            <div className="section-wise-progress">
+              <div className="section-selector">
+                <select 
+                  value={selectedSection} 
+                  onChange={(e) => setSelectedSection(parseInt(e.target.value))}
+                  className="section-dropdown"
+                >
+                  {progressData.map((section, index) => (
+                    <option key={section.id} value={index}>
+                      {section.name} ({section.answered}/{section.total})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {selectedSection !== null && progressData[selectedSection] && (
+                <div className="selected-section-progress">
+                  <h4>{progressData[selectedSection].name}</h4>
+                  {getSectionProgress(progressData[selectedSection])}
+                </div>
+              )}
+
+              {/* Overall summary */}
+              <div className="overall-summary">
+                <h5>Overall Progress</h5>
+                <div className="progress-row">
+                  <span className="progress-label">Total Answered:</span>
+                  <span className="progress-count answered">
+                    {progressData.reduce((acc, section) => acc + section.answered, 0)}/
+                    {progressData.reduce((acc, section) => acc + section.total, 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Linear exam progress
+            <div className="linear-progress">
+              {getSectionProgress(progressData)}
+            </div>
+          )}
+
+          {/* Visual Progress Indicators */}
+          <div className="progress-visual">
+            <div className="progress-legend">
+              <div className="legend-item">
+                <span className="legend-color answered"></span>
+                <span>Answered</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color visited"></span>
+                <span>Visited</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color unanswered"></span>
+                <span>Unanswered</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compact view when collapsed */}
+      {!isExpanded && (
+        <div className="progress-tab-compact">
+          <span className="compact-progress">
+            {isSectionWise 
+              ? `${progressData.reduce((acc, section) => acc + section.answered, 0)}/${progressData.reduce((acc, section) => acc + section.total, 0)}`
+              : `${progressData.answered}/${progressData.total}`
+            }
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Submission Confirmation Component
+const SubmissionConfirmation = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  progressData,
+  isSectionWise
+}) => {
+  if (!isOpen) return null;
+
+  const renderProgressSummary = () => {
+    if (isSectionWise && Array.isArray(progressData)) {
+      return (
+        <div className="section-submission-summary">
+          <h4>Section-wise Progress</h4>
+          {progressData.map((section, index) => (
+            <div key={section.id} className="section-summary-item">
+              <div className="section-summary-header">
+                <span className="section-name">{section.name}</span>
+                <span className="section-progress">
+                  {section.answered}/{section.total} answered
+                </span>
+              </div>
+              <div className="section-details">
+                <span className="progress-detail answered">
+                  ✅ {section.answered} Answered
+                </span>
+                <span className="progress-detail visited">
+                  🔶 {section.visited} Visited
+                </span>
+                <span className="progress-detail unanswered">
+                  ❌ {section.unanswered} Unanswered
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    } else if (progressData) {
+      return (
+        <div className="linear-submission-summary">
+          <div className="progress-stats">
+            <div className="stat-item">
+              <span className="stat-label">Total Questions:</span>
+              <span className="stat-value">{progressData.total}</span>
+            </div>
+            <div className="stat-item answered">
+              <span className="stat-label">Answered:</span>
+              <span className="stat-value">{progressData.answered}</span>
+            </div>
+            <div className="stat-item visited">
+              <span className="stat-label">Visited but Unanswered:</span>
+              <span className="stat-value">{progressData.visited}</span>
+            </div>
+            <div className="stat-item unanswered">
+              <span className="stat-label">Unanswered:</span>
+              <span className="stat-value">{progressData.unanswered}</span>
+            </div>
+          </div>
+          <div className="progress-percentage-final">
+            Completion: {Math.round(progressData.progress)}%
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="submission-confirmation-overlay">
+      <div className="submission-confirmation-modal">
+        <div className="confirmation-header">
+          <h3>Submit Exam</h3>
+          <p>Please review your progress before final submission</p>
+        </div>
+        
+        <div className="confirmation-content">
+          {renderProgressSummary()}
+          
+          <div className="warning-message">
+            ⚠️ Once submitted, you cannot change your answers. This action is irreversible.
+          </div>
+        </div>
+        
+        <div className="confirmation-actions">
+          <button 
+            onClick={onClose}
+            className="btn btn-secondary"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={onConfirm}
+            className="btn btn-primary"
+          >
+            Confirm Submission
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Main Exam Interface Component
 const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [sectionProgress, setSectionProgress] = useState({});
+  const [visitedQuestions, setVisitedQuestions] = useState([]);
   const [submittedSections, setSubmittedSections] = useState([]);
+  const [showSubmissionConfirm, setShowSubmissionConfirm] = useState(false);
   const timerRef = useRef(null);
   const answersRef = useRef({});
   const location = useLocation();
@@ -89,6 +407,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  // Track visited questions
+  useEffect(() => {
+    const currentQuestion = getCurrentQuestion();
+    if (currentQuestion?.id && !visitedQuestions.includes(currentQuestion.id)) {
+      setVisitedQuestions(prev => [...prev, currentQuestion.id]);
+    }
+  }, [currentQuestionIndex, currentSectionIndex]);
 
   // Handle exam data from location state or props
   useEffect(() => {
@@ -390,6 +716,47 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     return Object.keys(answers).length;
   };
 
+  // Calculate progress data for ProgressTab and SubmissionConfirmation
+  const calculateProgressData = () => {
+    if (!examData) return null;
+
+    if (getExamOrganization() === 'section_wise') {
+      const sections = getSections();
+      return sections.map((section, index) => {
+        const sectionQuestions = section.questions || [];
+        const answered = sectionQuestions.filter(q => answers[q.id]).length;
+        const visited = sectionQuestions.filter(q => 
+          visitedQuestions.includes(q.id) && !answers[q.id]
+        ).length;
+        const unanswered = sectionQuestions.length - answered - visited;
+
+        return {
+          id: section.id,
+          name: section.name,
+          total: sectionQuestions.length,
+          answered,
+          visited,
+          unanswered,
+          progress: sectionQuestions.length > 0 ? (answered / sectionQuestions.length) * 100 : 0
+        };
+      });
+    } else {
+      // Linear exam progress
+      const questions = getQuestions();
+      const answered = Object.keys(answers).length;
+      const visited = visitedQuestions.filter(qId => !answers[qId]).length;
+      const unanswered = questions.length - answered - visited;
+
+      return {
+        total: questions.length,
+        answered,
+        visited,
+        unanswered,
+        progress: questions.length > 0 ? (answered / questions.length) * 100 : 0
+      };
+    }
+  };
+
   const getExamTitle = () => {
     if (!examData) return 'Exam';
     return examData.exam?.title || examData.title || 'Exam';
@@ -614,6 +981,15 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   };
 
+  const handleSubmitClick = () => {
+    setShowSubmissionConfirm(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    setShowSubmissionConfirm(false);
+    handleSubmit(false);
+  };
+
   const handleSubmit = async (isAutoSubmit = false, violationType = null) => {
     if (!examData) {
       alert('Exam data not available. Cannot submit.');
@@ -754,6 +1130,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const questions = getCurrentSectionQuestions();
   const sections = getSections();
   const isSectionWise = getExamOrganization() === 'section_wise';
+  const progressData = calculateProgressData();
 
   // Show loading state while waiting for exam data
   if (!examData) {
@@ -865,6 +1242,25 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   return (
     <div className="exam-interface">
+      {/* Progress Tab Component */}
+      <ProgressTab
+        examData={examData}
+        answers={answers}
+        currentSectionIndex={currentSectionIndex}
+        currentQuestionIndex={currentQuestionIndex}
+        isSectionWise={isSectionWise}
+        visitedQuestions={visitedQuestions}
+      />
+
+      {/* Submission Confirmation Modal */}
+      <SubmissionConfirmation
+        isOpen={showSubmissionConfirm}
+        onClose={() => setShowSubmissionConfirm(false)}
+        onConfirm={handleConfirmSubmit}
+        progressData={progressData}
+        isSectionWise={isSectionWise}
+      />
+
       {/* Full Screen Warning Modal */}
       {showFullScreenModal && (
         <div className="full-screen-warning-modal">
@@ -1078,7 +1474,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           </button>
         ) : currentQuestionIndex === questions.length - 1 && (isLastSection() || !isSectionWise) ? (
           <button 
-            onClick={() => handleSubmit(false)}
+            onClick={handleSubmitClick}
             disabled={loading || isSubmitting || isPaused}
             className="btn btn-primary"
           >
@@ -1102,7 +1498,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
             <button
               key={index}
               className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
-                answers[question.id] ? 'answered' : ''
+                answers[question.id] ? 'answered' : visitedQuestions.includes(question.id) ? 'visited' : 'unanswered'
               }`}
               onClick={() => !isPaused && navigateToQuestion(currentSectionIndex, index)}
               disabled={isPaused}
