@@ -1,62 +1,63 @@
+/* ProgressTab.css */
 .progress-tab {
   background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  border: 1px solid #e9ecef;
   border-radius: 8px;
-  margin: 15px 0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  position: relative;
-  z-index: 100;
+  margin-bottom: 20px;
+  overflow: hidden;
 }
 
 .progress-header {
-  background: #e9ecef;
-  padding: 12px 15px;
+  background: #007bff;
+  color: white;
+  padding: 12px 16px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #dee2e6;
+  transition: background-color 0.2s;
+}
+
+.progress-header:hover {
+  background: #0056b3;
 }
 
 .progress-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #495057;
+  font-weight: 600;
 }
 
 .expand-icon {
   font-size: 12px;
-  color: #6c757d;
 }
 
 .progress-content {
-  padding: 15px;
+  padding: 16px;
   max-height: 400px;
   overflow-y: auto;
 }
 
 .progress-summary {
   margin-bottom: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
 }
 
 .progress-summary h4 {
-  margin-bottom: 10px;
+  margin: 0 0 12px 0;
   color: #495057;
   font-size: 14px;
-}
-
-/* Section Summary */
-.section-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  font-weight: 600;
 }
 
 .section-progress-item {
-  background: white;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
 }
 
 .section-header {
@@ -68,12 +69,12 @@
 
 .section-name {
   font-weight: 600;
-  font-size: 13px;
+  color: #495057;
 }
 
 .section-stats {
-  font-size: 12px;
-  color: #6c757d;
+  font-weight: 600;
+  color: #007bff;
 }
 
 .progress-bar-mini {
@@ -81,12 +82,13 @@
   background: #e9ecef;
   border-radius: 3px;
   overflow: hidden;
+  display: flex;
   margin-bottom: 8px;
 }
 
 .progress-fill-mini {
   height: 100%;
-  float: left;
+  transition: width 0.3s ease;
 }
 
 .progress-fill-mini.answered {
@@ -99,13 +101,15 @@
 
 .progress-details {
   display: flex;
-  gap: 10px;
-  font-size: 11px;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
 }
 
 .progress-detail {
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
 .progress-detail.answered {
@@ -119,35 +123,27 @@
 }
 
 .progress-detail.not-visited {
-  background: #f8f9fa;
-  color: #6c757d;
-}
-
-/* Linear Summary */
-.linear-summary {
-  background: white;
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
+  background: #f8d7da;
+  color: #721c24;
 }
 
 .progress-stats {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stat-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
 }
 
@@ -160,7 +156,7 @@
 }
 
 .stat-dot.not-visited {
-  background: #6c757d;
+  background: #dc3545;
 }
 
 .progress-bar-overall {
@@ -173,6 +169,7 @@
 
 .progress-segment {
   height: 100%;
+  transition: width 0.3s ease;
 }
 
 .progress-segment.answered {
@@ -184,57 +181,61 @@
 }
 
 .progress-segment.not-visited {
-  background: #6c757d;
-}
-
-/* Questions Grid */
-.questions-grid {
-  margin-bottom: 20px;
+  background: #dc3545;
 }
 
 .questions-grid h4 {
-  margin-bottom: 10px;
+  margin: 0 0 12px 0;
   color: #495057;
   font-size: 14px;
+  font-weight: 600;
 }
 
 .section-questions-group {
-  margin-bottom: 15px;
+  margin-bottom: 16px;
 }
 
 .section-title {
-  font-size: 13px;
   font-weight: 600;
   color: #495057;
   margin-bottom: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid #dee2e6;
+  padding: 8px 12px;
+  background: #e9ecef;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
-.questions-list, .linear-questions {
+.questions-list,
+.linear-questions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 10px;
+  gap: 6px;
+  padding: 8px;
 }
 
 .question-number {
-  width: 35px;
-  height: 35px;
+  width: 36px;
+  height: 36px;
   border: 2px solid #dee2e6;
-  border-radius: 5px;
+  border-radius: 6px;
   background: white;
   cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.2s;
 }
 
-.question-number:hover {
-  transform: scale(1.05);
+.question-number:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.question-number:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .question-number.answered {
@@ -250,36 +251,30 @@
 }
 
 .question-number.not-visited {
-  background: white;
-  color: #6c757d;
-  border-color: #dee2e6;
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
 }
 
 .question-number.current {
   border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+  border-width: 3px;
+  transform: scale(1.1);
 }
 
-.question-number:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Legend */
 .progress-legend {
   display: flex;
-  justify-content: center;
-  gap: 15px;
+  gap: 16px;
   flex-wrap: wrap;
-  padding-top: 10px;
-  border-top: 1px solid #dee2e6;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e9ecef;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-size: 12px;
 }
 
@@ -298,31 +293,27 @@
 }
 
 .legend-color.not-visited {
-  background: #6c757d;
+  background: #dc3545;
 }
 
 .legend-color.current {
   background: #007bff;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .progress-content {
-    max-height: 300px;
-  }
-  
-  .questions-list, .linear-questions {
-    gap: 3px;
-  }
-  
-  .question-number {
-    width: 30px;
-    height: 30px;
-    font-size: 11px;
-  }
-  
-  .progress-details {
-    flex-direction: column;
-    gap: 5px;
-  }
+.progress-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.progress-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.progress-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.progress-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
