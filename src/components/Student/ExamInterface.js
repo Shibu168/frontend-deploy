@@ -10,7 +10,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const [showSubmissionSummary, setShowSubmissionSummary] = useState(false);
   const [submittedSections, setSubmittedSections] = useState([]);
-  const [sectionNotification, setSectionNotification] = useState(null);
   const timerRef = useRef(null);
   const answersRef = useRef({});
   const location = useLocation();
@@ -22,6 +21,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showFullScreenModal, setShowFullScreenModal] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [showProgressTab, setShowProgressTab] = useState(false);
   const proctoringRef = useRef({
     tabSwitchCount: 0,
     lastSwitchTime: null,
@@ -133,16 +133,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       }
     }
   }, [exam, examFromState, examData]);
-
-  // Section notification timeout
-  useEffect(() => {
-    if (sectionNotification) {
-      const timer = setTimeout(() => {
-        setSectionNotification(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [sectionNotification]);
 
   // SIMPLE Full Screen Detection
   useEffect(() => {
@@ -562,7 +552,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     setCurrentQuestionIndex(questionIndex);
   };
 
-  // Submit current section - UPDATED VERSION
+  // FIXED: Submit current section - NO MESSAGES AT ALL
   const handleSubmitSection = async () => {
     const currentSection = getCurrentSection();
     if (!currentSection) return;
@@ -601,11 +591,8 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       if (response.ok) {
         setSubmittedSections(prev => [...prev, currentSection.id]);
         
-        // Show notification instead of alert
-        setSectionNotification({
-          type: 'success',
-          message: `Section "${currentSection.name}" submitted successfully!`
-        });
+        // NO MESSAGES - SILENT SUBMISSION
+        console.log(`Section "${currentSection.name}" submitted successfully`);
         
         // Move to next section if available
         const sections = getSections();
@@ -621,10 +608,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       }
     } catch (error) {
       console.error('Error submitting section:', error);
-      setSectionNotification({
-        type: 'error',
-        message: 'Error submitting section. Please try again.'
-      });
+      // NO ERROR MESSAGES EITHER - SILENT FAILURE
     }
   };
 
@@ -945,13 +929,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   return (
     <div className="exam-interface">
-      {/* Section Notification */}
-      {sectionNotification && (
-        <div className={`section-notification ${sectionNotification.type}`}>
-          {sectionNotification.message}
-        </div>
-      )}
-
       {/* Full Screen Warning Modal */}
       {showFullScreenModal && (
         <div className="full-screen-warning-modal">
@@ -1038,25 +1015,36 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       )}
 
-      {/* Proctoring Status Bar */}
+      {/* Enhanced Proctoring Status Bar with Progress Tab Toggle */}
       <div className="proctoring-status">
-        <div className="status-item">
-          <span className="status-label">Tab Switches:</span>
-          <span className={`status-count ${tabSwitchCount >= MAX_TAB_SWITCHES ? 'warning' : ''}`}>
-            {tabSwitchCount} / {MAX_TAB_SWITCHES}
-          </span>
+        <div className="status-left">
+          <div className="status-item">
+            <span className="status-label">Tab Switches:</span>
+            <span className={`status-count ${tabSwitchCount >= MAX_TAB_SWITCHES ? 'warning' : ''}`}>
+              {tabSwitchCount} / {MAX_TAB_SWITCHES}
+            </span>
+          </div>
+          <div className="status-item">
+            <span className="status-label">Full Screen:</span>
+            <span className={`status-count ${!isFullScreen ? 'warning' : 'success'}`}>
+              {isFullScreen ? 'Active' : 'Not Active'}
+            </span>
+          </div>
+          <div className="status-item">
+            <span className="status-label">Exam Status:</span>
+            <span className={`status-count ${isPaused ? 'warning' : 'success'}`}>
+              {isPaused ? 'PAUSED' : 'Running'}
+            </span>
+          </div>
         </div>
-        <div className="status-item">
-          <span className="status-label">Full Screen:</span>
-          <span className={`status-count ${!isFullScreen ? 'warning' : 'success'}`}>
-            {isFullScreen ? 'Active' : 'Not Active'}
-          </span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Exam Status:</span>
-          <span className={`status-count ${isPaused ? 'warning' : 'success'}`}>
-            {isPaused ? 'PAUSED' : 'Running'}
-          </span>
+        
+        <div className="status-right">
+          <button 
+            className="progress-toggle-btn"
+            onClick={() => setShowProgressTab(!showProgressTab)}
+          >
+            {showProgressTab ? '📊 Hide Progress' : '📊 Show Progress'}
+          </button>
         </div>
       </div>
 
@@ -1104,173 +1092,180 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
-      {/* Progress Tab */}
-      <ProgressTab
-        examData={examData}
-        answers={answers}
-        visitedQuestions={visitedQuestions}
-        currentSectionIndex={currentSectionIndex}
-        currentQuestionIndex={currentQuestionIndex}
-        isSectionWise={isSectionWise}
-        onQuestionNavigate={navigateToQuestion}
-        isPaused={isPaused}
-      />
+      {/* Progress Tab - Integrated with Proctoring Status */}
+      {showProgressTab && (
+        <div className="progress-tab-container">
+          <ProgressTab
+            examData={examData}
+            answers={answers}
+            visitedQuestions={visitedQuestions}
+            currentSectionIndex={currentSectionIndex}
+            currentQuestionIndex={currentQuestionIndex}
+            isSectionWise={isSectionWise}
+            onQuestionNavigate={navigateToQuestion}
+            isPaused={isPaused}
+          />
+        </div>
+      )}
 
-      {isSectionWise && (
-        <div className="sections-navigation">
-          <div className="sections-tabs">
-            {sections.map((section, index) => (
+      {/* Main Exam Content */}
+      <div className="exam-content-area">
+        {isSectionWise && (
+          <div className="sections-navigation">
+            <div className="sections-tabs">
+              {sections.map((section, index) => (
+                <button
+                  key={section.id}
+                  className={`section-tab ${index === currentSectionIndex ? 'active' : ''} ${
+                    isSectionSubmitted(section.id) ? 'submitted' : ''
+                  }`}
+                  onClick={() => navigateToQuestion(index, 0)}
+                  disabled={isPaused || (!examData.navigation_rules?.allow_back && index < currentSectionIndex)}
+                >
+                  <span className="section-tab-number">{index + 1}</span>
+                  <span className="section-tab-name">{section.name}</span>
+                  {isSectionSubmitted(section.id) && (
+                    <span className="submitted-badge">✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="question-container">
+          <div className="question-header">
+            <h3>
+              {isSectionWise ? `Section ${currentSectionIndex + 1} - ` : ''}
+              Question {currentQuestionIndex + 1}
+            </h3>
+            {isPaused && (
+              <div className="paused-overlay">
+                <p>Exam is paused. Return to full screen to continue.</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="question-text">
+            <p>{currentQuestion.question_text}</p>
+            {currentQuestion.question_image && (
+              <img 
+                src={currentQuestion.question_image} 
+                alt="Question illustration" 
+                className="question-image"
+              />
+            )}
+          </div>
+
+          <div className="options-container">
+            {currentQuestion.options && Object.entries(currentQuestion.options).map(([key, value]) => (
+              <label key={key} className="option-label">
+                <input
+                  type="radio"
+                  name={`question-${currentQuestion.id}`}
+                  value={key}
+                  checked={answers[currentQuestion.id] === key}
+                  onChange={() => handleAnswerSelect(currentQuestion.id, key)}
+                  disabled={isPaused}
+                />
+                <span className="option-text">{value}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="navigation-buttons">
+          <button 
+            onClick={handlePrevious}
+            disabled={
+              (currentQuestionIndex === 0 && currentSectionIndex === 0) || 
+              isPaused ||
+              (!examData.navigation_rules?.allow_back && currentSectionIndex > 0)
+            }
+            className="btn btn-secondary"
+          >
+            Previous
+          </button>
+          
+          <div className="question-counter">
+            {isSectionWise ? (
+              <>
+                Section {currentSectionIndex + 1}/{sections.length} • 
+                Q{currentQuestionIndex + 1}/{questions.length}
+              </>
+            ) : (
+              <>
+                {currentQuestionIndex + 1} / {questions.length}
+              </>
+            )}
+            {isPaused && <span style={{color: 'orange'}}> (Paused)</span>}
+          </div>
+
+          {isSectionWise && isLastQuestionInSection() && !isLastSection() ? (
+            <button 
+              onClick={handleSubmitSection}
+              disabled={isPaused}
+              className="btn btn-warning"
+            >
+              Submit Section & Continue
+            </button>
+          ) : isSectionWise && isLastQuestionInSection() && isLastSection() ? (
+            <button 
+              onClick={handleSubmitClick}
+              disabled={loading || isSubmitting || isPaused}
+              className="btn btn-primary"
+            >
+              Submit Final Exam
+            </button>
+          ) : currentQuestionIndex === questions.length - 1 && !isSectionWise ? (
+            <button 
+              onClick={handleSubmitClick}
+              disabled={loading || isSubmitting || isPaused}
+              className="btn btn-primary"
+            >
+              {loading ? 'Submitting...' : 'Submit Exam'}
+            </button>
+          ) : (
+            <button 
+              onClick={handleNext} 
+              disabled={isPaused}
+              className="btn btn-primary"
+            >
+              Next
+            </button>
+          )}
+        </div>
+
+        <div className="quick-navigation">
+          <h4>Questions{isSectionWise ? ` (Section ${currentSectionIndex + 1})` : ''}:</h4>
+          <div className="question-dots">
+            {questions.map((question, index) => (
               <button
-                key={section.id}
-                className={`section-tab ${index === currentSectionIndex ? 'active' : ''} ${
-                  isSectionSubmitted(section.id) ? 'submitted' : ''
+                key={index}
+                className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
+                  answers[question.id] ? 'answered' : ''
                 }`}
-                onClick={() => navigateToQuestion(index, 0)}
-                disabled={isPaused || (!examData.navigation_rules?.allow_back && index < currentSectionIndex)}
+                onClick={() => !isPaused && navigateToQuestion(currentSectionIndex, index)}
+                disabled={isPaused}
               >
-                <span className="section-tab-number">{index + 1}</span>
-                <span className="section-tab-name">{section.name}</span>
-                {isSectionSubmitted(section.id) && (
-                  <span className="submitted-badge">✓</span>
-                )}
+                {index + 1}
               </button>
             ))}
           </div>
         </div>
-      )}
 
-      <div className="question-container">
-        <div className="question-header">
-          <h3>
-            {isSectionWise ? `Section ${currentSectionIndex + 1} - ` : ''}
-            Question {currentQuestionIndex + 1}
-          </h3>
-          {isPaused && (
-            <div className="paused-overlay">
-              <p>Exam is paused. Return to full screen to continue.</p>
+        {/* Full Screen Reminder Footer */}
+        {!isFullScreen && examStarted && (
+          <div className="full-screen-reminder">
+            <div className="reminder-content">
+              <p>⚠️ <strong>Full Screen Required:</strong> Please return to full screen mode to continue your exam.</p>
+              <button onClick={resumeExam} className="btn btn-warning">
+                Resume Full Screen
+              </button>
             </div>
-          )}
-        </div>
-        
-        <div className="question-text">
-          <p>{currentQuestion.question_text}</p>
-          {currentQuestion.question_image && (
-            <img 
-              src={currentQuestion.question_image} 
-              alt="Question illustration" 
-              className="question-image"
-            />
-          )}
-        </div>
-
-        <div className="options-container">
-          {currentQuestion.options && Object.entries(currentQuestion.options).map(([key, value]) => (
-            <label key={key} className="option-label">
-              <input
-                type="radio"
-                name={`question-${currentQuestion.id}`}
-                value={key}
-                checked={answers[currentQuestion.id] === key}
-                onChange={() => handleAnswerSelect(currentQuestion.id, key)}
-                disabled={isPaused}
-              />
-              <span className="option-text">{value}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="navigation-buttons">
-        <button 
-          onClick={handlePrevious}
-          disabled={
-            (currentQuestionIndex === 0 && currentSectionIndex === 0) || 
-            isPaused ||
-            (!examData.navigation_rules?.allow_back && currentSectionIndex > 0)
-          }
-          className="btn btn-secondary"
-        >
-          Previous
-        </button>
-        
-        <div className="question-counter">
-          {isSectionWise ? (
-            <>
-              Section {currentSectionIndex + 1}/{sections.length} • 
-              Q{currentQuestionIndex + 1}/{questions.length}
-            </>
-          ) : (
-            <>
-              {currentQuestionIndex + 1} / {questions.length}
-            </>
-          )}
-          {isPaused && <span style={{color: 'orange'}}> (Paused)</span>}
-        </div>
-
-        {isSectionWise && isLastQuestionInSection() && !isLastSection() ? (
-          <button 
-            onClick={handleSubmitSection}
-            disabled={isPaused}
-            className="btn btn-warning"
-          >
-            Submit Section & Continue
-          </button>
-        ) : isSectionWise && isLastQuestionInSection() && isLastSection() ? (
-          <button 
-            onClick={handleSubmitClick}
-            disabled={loading || isSubmitting || isPaused}
-            className="btn btn-primary"
-          >
-            Submit Final Exam
-          </button>
-        ) : currentQuestionIndex === questions.length - 1 && !isSectionWise ? (
-          <button 
-            onClick={handleSubmitClick}
-            disabled={loading || isSubmitting || isPaused}
-            className="btn btn-primary"
-          >
-            {loading ? 'Submitting...' : 'Submit Exam'}
-          </button>
-        ) : (
-          <button 
-            onClick={handleNext} 
-            disabled={isPaused}
-            className="btn btn-primary"
-          >
-            Next
-          </button>
+          </div>
         )}
       </div>
-
-      <div className="quick-navigation">
-        <h4>Questions{isSectionWise ? ` (Section ${currentSectionIndex + 1})` : ''}:</h4>
-        <div className="question-dots">
-          {questions.map((question, index) => (
-            <button
-              key={index}
-              className={`dot ${index === currentQuestionIndex ? 'active' : ''} ${
-                answers[question.id] ? 'answered' : ''
-              }`}
-              onClick={() => !isPaused && navigateToQuestion(currentSectionIndex, index)}
-              disabled={isPaused}
-            >
-              {index + 1}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Full Screen Reminder Footer */}
-      {!isFullScreen && examStarted && (
-        <div className="full-screen-reminder">
-          <div className="reminder-content">
-            <p>⚠️ <strong>Full Screen Required:</strong> Please return to full screen mode to continue your exam.</p>
-            <button onClick={resumeExam} className="btn btn-warning">
-              Resume Full Screen
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
