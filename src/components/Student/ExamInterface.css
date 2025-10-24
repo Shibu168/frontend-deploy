@@ -993,3 +993,112 @@
     min-width: auto;
   }
 }
+
+/* 🆕 Submission Summary Modal Styles */
+.submission-summary-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.summary-content {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.summary-content h2 {
+  margin: 0 0 8px 0;
+  color: #343a40;
+}
+
+.summary-content > p {
+  margin: 0 0 20px 0;
+  color: #6c757d;
+}
+
+.summary-details {
+  margin-bottom: 20px;
+}
+
+.summary-section {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border-left: 4px solid #007bff;
+}
+
+.summary-section h4 {
+  margin: 0 0 12px 0;
+  color: #495057;
+}
+
+.summary-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.stat-label {
+  font-weight: 500;
+  color: #495057;
+}
+
+.stat-value {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.stat-value.answered {
+  background: #d4edda;
+  color: #155724;
+}
+
+.stat-value.visited {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.stat-value.not-visited {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.summary-warning {
+  padding: 12px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.summary-warning p {
+  margin: 0;
+  color: #856404;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
