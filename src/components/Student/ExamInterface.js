@@ -10,6 +10,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [visitedQuestions, setVisitedQuestions] = useState(new Set());
   const [showSubmissionSummary, setShowSubmissionSummary] = useState(false);
   const [submittedSections, setSubmittedSections] = useState([]);
+  const [sectionNotification, setSectionNotification] = useState(null);
   const timerRef = useRef(null);
   const answersRef = useRef({});
   const location = useLocation();
@@ -133,7 +134,17 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     }
   }, [exam, examFromState, examData]);
 
-  // SIMPLE Full Screen Detection - This is the key fix
+  // Section notification timeout
+  useEffect(() => {
+    if (sectionNotification) {
+      const timer = setTimeout(() => {
+        setSectionNotification(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [sectionNotification]);
+
+  // SIMPLE Full Screen Detection
   useEffect(() => {
     const checkFullScreenStatus = () => {
       return !!(
@@ -551,7 +562,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     setCurrentQuestionIndex(questionIndex);
   };
 
-  // Submit current section
+  // Submit current section - UPDATED VERSION
   const handleSubmitSection = async () => {
     const currentSection = getCurrentSection();
     if (!currentSection) return;
@@ -561,9 +572,14 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
       const token = localStorage.getItem('token');
       const examId = getExamId();
 
-      const sectionAnswers = Object.entries(answers).filter(([questionId, answer]) => {
-        const question = getCurrentSectionQuestions().find(q => q.id === parseInt(questionId));
-        return question;
+      // Get answers for current section only
+      const sectionQuestions = getCurrentSectionQuestions();
+      const sectionAnswers = {};
+      
+      sectionQuestions.forEach(question => {
+        if (answers[question.id]) {
+          sectionAnswers[question.id] = answers[question.id];
+        }
       });
 
       const response = await fetch(`${API_BASE}/api/student/exams/${examId}/sections/${currentSection.id}/submit`, {
@@ -575,7 +591,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         body: JSON.stringify({
           attemptId: attemptData?.attemptId,
           sessionToken: attemptData?.sessionToken,
-          answers: sectionAnswers.map(([questionId, answer]) => ({
+          answers: Object.entries(sectionAnswers).map(([questionId, answer]) => ({
             questionId: parseInt(questionId),
             answer: answer
           }))
@@ -584,20 +600,31 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
       if (response.ok) {
         setSubmittedSections(prev => [...prev, currentSection.id]);
-        alert(`Section "${currentSection.name}" submitted successfully!`);
+        
+        // Show notification instead of alert
+        setSectionNotification({
+          type: 'success',
+          message: `Section "${currentSection.name}" submitted successfully!`
+        });
         
         // Move to next section if available
         const sections = getSections();
         if (currentSectionIndex < sections.length - 1) {
           setCurrentSectionIndex(prev => prev + 1);
           setCurrentQuestionIndex(0);
+        } else {
+          // This is the last section - show submission summary for final exam submission
+          setShowSubmissionSummary(true);
         }
       } else {
         throw new Error('Failed to submit section');
       }
     } catch (error) {
       console.error('Error submitting section:', error);
-      alert('Error submitting section. Please try again.');
+      setSectionNotification({
+        type: 'error',
+        message: 'Error submitting section. Please try again.'
+      });
     }
   };
 
@@ -918,6 +945,13 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
 
   return (
     <div className="exam-interface">
+      {/* Section Notification */}
+      {sectionNotification && (
+        <div className={`section-notification ${sectionNotification.type}`}>
+          {sectionNotification.message}
+        </div>
+      )}
+
       {/* Full Screen Warning Modal */}
       {showFullScreenModal && (
         <div className="full-screen-warning-modal">
@@ -960,6 +994,46 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
             <button onClick={closeWarningModal} className="btn btn-warning">
               I Understand
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Submission Summary Modal */}
+      {showSubmissionSummary && (
+        <div className="submission-summary-modal">
+          <div className="modal-content">
+            <h3>Ready to Submit Exam?</h3>
+            <div className="submission-details">
+              <p>You have completed all sections of the exam.</p>
+              {isSectionWise && (
+                <div className="section-summary-list">
+                  {getSections().map((section, index) => (
+                    <div key={section.id} className="section-summary-item">
+                      <span className="section-name">Section {index + 1}: {section.name}</span>
+                      <span className={`section-status ${submittedSections.includes(section.id) ? 'submitted' : 'not-submitted'}`}>
+                        {submittedSections.includes(section.id) ? '✓ Submitted' : '✗ Not Submitted'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p><strong>Total Questions Answered:</strong> {getAnsweredQuestionsCount()} / {getTotalQuestionsCount()}</p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                onClick={() => setShowSubmissionSummary(false)}
+                className="btn btn-secondary"
+              >
+                Review Answers
+              </button>
+              <button 
+                onClick={handleFinalSubmit}
+                disabled={isSubmitting}
+                className="btn btn-primary"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Final Exam'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1141,7 +1215,15 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           >
             Submit Section & Continue
           </button>
-        ) : currentQuestionIndex === questions.length - 1 && (isLastSection() || !isSectionWise) ? (
+        ) : isSectionWise && isLastQuestionInSection() && isLastSection() ? (
+          <button 
+            onClick={handleSubmitClick}
+            disabled={loading || isSubmitting || isPaused}
+            className="btn btn-primary"
+          >
+            Submit Final Exam
+          </button>
+        ) : currentQuestionIndex === questions.length - 1 && !isSectionWise ? (
           <button 
             onClick={handleSubmitClick}
             disabled={loading || isSubmitting || isPaused}
