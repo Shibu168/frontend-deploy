@@ -38,6 +38,32 @@ const AvailableExams = ({ onExamSelect }) => {
   };
 
   const handleExamSelect = async (exam) => {
+  // 🆕 Check if exam has ended before making API call
+    const currentTime = new Date();
+    
+    if (exam.end_time && currentTime > new Date(exam.end_time)) {
+      alert('This exam has ended. You cannot start it anymore.');
+      return;
+    }
+
+    // 🆕 Check if exam hasn't started yet
+    if (exam.start_time && currentTime < new Date(exam.start_time)) {
+      const startTime = new Date(exam.start_time);
+      const timeUntilStart = Math.round((startTime - currentTime) / (1000 * 60)); // minutes
+      let timeMessage;
+      
+      if (timeUntilStart < 60) {
+        timeMessage = `Exam starts in ${timeUntilStart} minutes`;
+      } else if (timeUntilStart < 1440) {
+        timeMessage = `Exam starts in ${Math.round(timeUntilStart / 60)} hours`;
+      } else {
+        timeMessage = `Exam starts on ${formatDate(exam.start_time)} at ${formatTime(exam.start_time)}`;
+      }
+      
+      alert(`This exam has not started yet. ${timeMessage}`);
+      return;
+    }
+
     if (exam.visibility === 'public' || exam.visibility === 'shared') {
       try {
         const token = localStorage.getItem('token');
@@ -53,7 +79,15 @@ const AvailableExams = ({ onExamSelect }) => {
           onExamSelect(examData.exam);
         } else {
           const errorData = await response.json();
-          alert('Failed to start exam: ' + (errorData.error || 'Unknown error'));
+          
+          // 🆕 Handle specific backend time validation errors
+          if (errorData.error && errorData.error.includes('ended')) {
+            alert('This exam has ended. You cannot start it anymore.');
+          } else if (errorData.error && errorData.error.includes('not started')) {
+            alert('This exam has not started yet.');
+          } else {
+            alert('Failed to start exam: ' + (errorData.error || 'Unknown error'));
+          }
         }
       } catch (error) {
         console.error('Error starting exam:', error);
@@ -63,7 +97,6 @@ const AvailableExams = ({ onExamSelect }) => {
       alert('This is a private exam. Please use the shareable link provided by your teacher.');
     }
   };
-
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const options = { month: 'short', day: 'numeric', year: 'numeric' };
