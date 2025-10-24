@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import ProgressTab from './ProgressTab';
 import './ExamInterface.css';
 
 const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [visitedQuestions, setVisitedQuestions] = useState(new Set());
-  const [showSubmissionSummary, setShowSubmissionSummary] = useState(false);
+  const [sectionProgress, setSectionProgress] = useState({});
   const [submittedSections, setSubmittedSections] = useState([]);
   const timerRef = useRef(null);
   const answersRef = useRef({});
@@ -91,13 +89,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
-
-  // Track visited questions
-  useEffect(() => {
-    if (examStarted && currentQuestion) {
-      setVisitedQuestions(prev => new Set(prev).add(currentQuestion.id));
-    }
-  }, [currentQuestion, examStarted]);
 
   // Handle exam data from location state or props
   useEffect(() => {
@@ -760,50 +751,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
     return totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
   };
 
-  // Submission handler functions
-  const handleSubmitClick = () => {
-    setShowSubmissionSummary(true);
-  };
-
-  const handleFinalSubmit = async () => {
-    setShowSubmissionSummary(false);
-    await handleSubmit(false);
-  };
-
-  // Progress sync function
-  const syncProgressWithBackend = async () => {
-    if (!examData || !attemptData) return;
-
-    try {
-      const API_BASE = process.env.REACT_APP_BACKEND_URL;
-      const token = localStorage.getItem('token');
-      const examId = getExamId();
-
-      await fetch(`${API_BASE}/api/student/progress/${examId}/sync`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          answers: answers,
-          currentSection: currentSectionIndex,
-          currentQuestion: currentQuestionIndex,
-          visitedQuestions: Array.from(visitedQuestions)
-        })
-      });
-    } catch (error) {
-      console.error('Progress sync failed:', error);
-    }
-  };
-
-  // Call progress sync when answers or current question changes
-  useEffect(() => {
-    if (examStarted) {
-      syncProgressWithBackend();
-    }
-  }, [answers, currentSectionIndex, currentQuestionIndex, examStarted]);
-
   const questions = getCurrentSectionQuestions();
   const sections = getSections();
   const isSectionWise = getExamOrganization() === 'section_wise';
@@ -1030,18 +977,6 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
         </div>
       </div>
 
-      {/* Progress Tab */}
-      <ProgressTab
-        examData={examData}
-        answers={answers}
-        visitedQuestions={visitedQuestions}
-        currentSectionIndex={currentSectionIndex}
-        currentQuestionIndex={currentQuestionIndex}
-        isSectionWise={isSectionWise}
-        onQuestionNavigate={navigateToQuestion}
-        isPaused={isPaused}
-      />
-
       {isSectionWise && (
         <div className="sections-navigation">
           <div className="sections-tabs">
@@ -1143,7 +1078,7 @@ const ExamInterface = ({ exam, onExamComplete, onBack }) => {
           </button>
         ) : currentQuestionIndex === questions.length - 1 && (isLastSection() || !isSectionWise) ? (
           <button 
-            onClick={handleSubmitClick}
+            onClick={() => handleSubmit(false)}
             disabled={loading || isSubmitting || isPaused}
             className="btn btn-primary"
           >
